@@ -1,0 +1,2 @@
+# Copy to local.properties, or let Android Studio generate this file.
+sdk.dir=/path/to/Android/Sdk

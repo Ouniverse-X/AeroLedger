@@ -1,0 +1,26 @@
+.gradle/
+**/build/
+local.properties
+.idea/
+*.iml
+.DS_Store
+captures/
+
+# Local development material and generated delivery bundles
+/Reference/
+/artifacts/
+/docx/
+/docs/
+/examples/
+/scripts/*.py
+/scripts/preview.html
+/scripts/start-preview.sh
+/scripts/stop-preview.sh
+**/__pycache__/
+*.py[cod]
+
+# Local credentials and signing material
+.env
+.env.*
+*.keystore
+*.jks
