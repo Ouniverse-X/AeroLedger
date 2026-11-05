@@ -8,3 +8,7 @@
 | [AutoAccountingOrg/AutoAccounting](https://github.com/AutoAccountingOrg/AutoAccounting) | `ed5c2ad94b152f7351d76fcd33f9099a5f7532eb` | GPL-3.0 | 账单处理流程、来源信息、分类映射与重复检测 |
 
 本仓库只发布 AeroLedger 的应用源码、测试、构建与开发说明及安装包。开发工作区中的参考项目副本不在上传范围内。若后续直接采用上游代码，需按其许可证保留相应声明并记录代码来源。
+
+## Interactive Preview
+
+网页预览采用 [Genymobile/scrcpy](https://github.com/Genymobile/scrcpy) 3.3.3 的官方服务与公开协议（Apache-2.0），客户端固定匹配版本并校验下载内容。服务按需缓存在本机临时目录，不复制进 Android 应用；画面转换依赖用户安装的 FFmpeg。预览输入与传输代码由本项目实现。

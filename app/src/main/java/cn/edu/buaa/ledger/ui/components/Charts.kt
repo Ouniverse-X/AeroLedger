@@ -25,11 +25,22 @@ import java.time.YearMonth
 import java.util.Locale
 import kotlin.math.*
 
-@Composable fun CategoryDonut(entries: List<TransactionEntity>, onDetails: (String) -> Unit) {
-    val groups = entries.filter { it.type=="expense" }.groupBy { it.categoryCode }
-        .mapValues { (_,v) -> v.sumOf { it.amountCents } }.toList().sortedByDescending { it.second }
+private fun percentage(value:Long,total:Long):String = when {
+    total<=0 -> "0%"
+    value>0 && value*100.0/total<.1 -> "<0.1%"
+    else -> "%.1f%%".format(Locale.CHINA,value*100.0/total)
+}
+
+@Composable fun CategoryDonut(entries: List<TransactionEntity>, totals: List<CategoryAmount>? = null,
+    onDetails: (String) -> Unit) {
+    val groups = remember(entries,totals) { totals?.map { it.categoryCode to it.amountCents } ?: entries.filter { it.type=="expense" }.groupBy { it.categoryCode }
+        .mapValues { (_,v) -> v.sumOf { it.amountCents } }.toList().sortedByDescending { it.second } }
     val total = groups.sumOf { it.second }
+    val dark=MaterialTheme.colorScheme.background.luminance()<.2f
+    val colors=groups.associate { (code,_) -> code to categoryColor(code).let{if(dark)lerp(it,Color.White,.35f)else it} }
     var selected by rememberSaveable { mutableStateOf<String?>(null) }
+    val selectedGroup = groups.firstOrNull { it.first == selected }
+    val active = selectedGroup?.first
     LaunchedEffect(groups) { if(groups.none { it.first==selected }) selected=null }
     val motion = remember { Animatable(0f) }
     LaunchedEffect(groups) { motion.snapTo(0f); motion.animateTo(1f,tween(350)) }
@@ -46,7 +57,8 @@ import kotlin.math.*
                 detectTapGestures { point ->
                     val x=point.x-size.width/2f; val y=point.y-size.height/2f
                     val radius=sqrt(x*x+y*y)
-                    if(radius<size.width*.29f || radius>size.width*.49f) { selected=null; return@detectTapGestures }
+                    val outer=size.width/2f-10.dp.toPx()
+                    if(radius<outer-27.dp.toPx() || radius>outer+2.dp.toPx()) { selected=null; return@detectTapGestures }
                     val angle=((atan2(y,x)*180/PI+450)%360).toFloat()
                     var cursor=0f
                     for((code,value) in groups) {
@@ -61,46 +73,51 @@ import kotlin.math.*
                 var start=-90f
                 groups.forEach { (code,value) ->
                     val sweep=value*360f/total
-                    val color=categoryColor(code).copy(alpha=if(selected==null || selected==code) 1f else .25f)
-                    drawArc(color,start, maxOf(.1f,sweep-1.5f)*motion.value,false,Offset(inset,inset),bounds,
-                        style=Stroke(if(selected==code) stroke+4.dp.toPx() else stroke))
+                    val color=colors.getValue(code).copy(alpha=if(active==null || active==code) 1f else .25f)
+                    drawArc(color,start, (sweep-minOf(1.5f,sweep*.12f))*motion.value,false,Offset(inset,inset),bounds,
+                        style=Stroke(if(active==code) stroke+4.dp.toPx() else stroke))
                     start+=sweep
                 }
             }
             Column(horizontalAlignment=Alignment.CenterHorizontally,modifier=Modifier.width(160.dp)) {
-                Subtitle(selected?.let(::categoryName) ?: "分类支出合计")
+                Subtitle(active?.let(::categoryName) ?: "分类支出合计")
                 Spacer(Modifier.height(7.dp))
-                Money(groups.firstOrNull { it.first==selected }?.second ?: total, size=27)
+                Money(selectedGroup?.second ?: total,Modifier.fillMaxWidth(),size=27)
                 Spacer(Modifier.height(4.dp))
-                Text(if(selected!=null && total>0) "%.1f%%".format(Locale.CHINA,groups.first { it.first==selected }.second*100.0/total) else "点击分类查看",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(if(selectedGroup!=null && total>0) percentage(selectedGroup.second,total) else "点击分类查看",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
             }
         }
         if(total==0L) Subtitle("当前范围暂无支出，收入不会计入支出占比。")
         groups.forEach { (code,value) ->
-            Surface(Modifier.fillMaxWidth().clickable { selected=if(selected==code) null else code },
-                color=if(selected==code) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,shape=RoundedCornerShape(12.dp)) {
+            Surface(Modifier.fillMaxWidth().semantics { this.selected=active==code; stateDescription=if(active==code)"已选中" else "未选中" }
+                .clickable { selected=if(active==code) null else code },
+                color=if(active==code) MaterialTheme.colorScheme.primaryContainer else Color.Transparent,shape=RoundedCornerShape(12.dp)) {
                 Column(Modifier.padding(horizontal=10.dp,vertical=9.dp),verticalArrangement=Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                        Canvas(Modifier.size(9.dp)) { drawCircle(categoryColor(code)) }
+                        Canvas(Modifier.size(9.dp)) { drawCircle(colors.getValue(code)) }
                         Text(categoryName(code),modifier=Modifier.weight(1f),style=MaterialTheme.typography.bodyLarge)
                         Text("¥${value.money()}",fontWeight=FontWeight.SemiBold,style=MaterialTheme.typography.bodyMedium)
-                        Text("%.1f%%".format(Locale.CHINA,value*100.0/total),modifier=Modifier.width(52.dp),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text(percentage(value,total),modifier=Modifier.width(52.dp),style=MaterialTheme.typography.bodyMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     LinearProgressIndicator(progress={value.toFloat()/total},modifier=Modifier.fillMaxWidth().height(4.dp),
-                        color=categoryColor(code),trackColor=MaterialTheme.colorScheme.surfaceVariant)
+                        color=colors.getValue(code),trackColor=MaterialTheme.colorScheme.surfaceVariant)
                 }
             }
         }
-        selected?.let { code -> OutlinedButton({onDetails(code)},modifier=Modifier.fillMaxWidth()) { Text("查看${categoryName(code)}明细") } }
+        active?.let { code -> OutlinedButton({onDetails(code)},modifier=Modifier.fillMaxWidth()) { Text("查看${categoryName(code)}明细") } }
     }
 }
 
 @Composable fun MonthlyTrend(data: LedgerData, filter: FilterSpec, onDetails: (YearMonth) -> Unit) {
     val months=(5 downTo 0).map { filter.month.minusMonths(it.toLong()) }
-    val values=months.map { m -> data.entries.filter { e ->
+    val values=remember(data.entries,data.trendTotals,filter) { months.map { m ->
+        data.trendTotals?.firstOrNull { it.month==m.toString() }?.let { Totals(it.expense,it.income,0) }
+            ?: if(data.trendTotals!=null) Totals(0,0,0) else data.entries.filter { e ->
         YearMonth.from(java.time.LocalDate.ofEpochDay(e.dateEpochDay))==m &&
-            (filter.type==null||filter.type==e.type) && (filter.category==null||filter.category==e.categoryCode)
-    }.totals() }
+            (filter.type==null||filter.type==e.type) && (filter.category==null||filter.category==e.categoryCode) && e.note.contains(filter.query.trim(),true)
+    }.totals() } }
+    val motion=remember { Animatable(1f) }
+    LaunchedEffect(values){motion.snapTo(0f);motion.animateTo(1f,tween(250))}
     var selected by rememberSaveable(filter.month.toString(),filter.category,filter.type) { mutableIntStateOf(5) }
     val ink=MaterialTheme.colorScheme.onSurfaceVariant
     val grid=MaterialTheme.colorScheme.outlineVariant
@@ -112,10 +129,11 @@ import kotlin.math.*
     val ceiling=ceil(maxValue/magnitude)*magnitude
     Panel {
         Text("近 6 月收支",style=MaterialTheme.typography.titleLarge)
-        Subtitle("${months.first()} 至 ${months.last()} · ${filter.category?.let(::categoryName)?:"全部类别"} · ${when(filter.type){"expense"->"支出";"income"->"收入";else->"全部收支"}}")
+        Subtitle("${months.first()} 至 ${months.last()} · ${filter.category?.let(::categoryName)?:"全部类别"} · ${when(filter.type){"expense"->"支出";"income"->"收入";else->"全部收支"}}${if(filter.query.isBlank())"" else " · 备注含「${filter.query}」"}")
         Row(horizontalArrangement=Arrangement.spacedBy(18.dp)) {
             ChartLegend("收入",income); ChartLegend("支出",expense)
         }
+        Subtitle("金额（元） · 点击柱形或下方月份核对")
         Canvas(Modifier.fillMaxWidth().height(190.dp).semantics {
             contentDescription="近六个月收支趋势。"+months.indices.joinToString { "${months[it]}收入${values[it].income.money()}元，支出${values[it].expense.money()}元" }
         }.pointerInput(months,values) {
@@ -128,14 +146,14 @@ import kotlin.math.*
                 val y=bottom-height*i/3
                 drawLine(grid,Offset(left,y),Offset(size.width,y),strokeWidth=1.dp.toPx())
                 val yuan=ceiling*i/3/100
-                val label=when { yuan>=10000 -> "%.1f万".format(Locale.ROOT,yuan/10000); yuan>=1000 -> "%.1f千".format(Locale.ROOT,yuan/1000); yuan==floor(yuan)->yuan.toInt().toString(); else->"%.2f".format(Locale.ROOT,yuan) }
+                val label=when { yuan>=1e12 -> "%.1f万亿".format(Locale.ROOT,yuan/1e12); yuan>=1e8 -> "%.1f亿".format(Locale.ROOT,yuan/1e8); yuan>=10000 -> "%.1f万".format(Locale.ROOT,yuan/10000); yuan>=1000 -> "%.1f千".format(Locale.ROOT,yuan/1000); yuan==floor(yuan)->yuan.toInt().toString(); else->"%.2f".format(Locale.ROOT,yuan) }
                 drawContext.canvas.nativeCanvas.drawText(label,0f,y+4.dp.toPx(),paint)
             }
             for(i in 0..5) {
                 val x=left+i*width
                 if(selected==i) drawRoundRect(highlight,Offset(x+2.dp.toPx(),top),Size(width-4.dp.toPx(),height),CornerRadius(7.dp.toPx()))
                 val bar=width*.22f
-                val a=(values[i].income/ceiling*height).toFloat(); val b=(values[i].expense/ceiling*height).toFloat()
+                val a=(values[i].income/ceiling*height).toFloat()*motion.value; val b=(values[i].expense/ceiling*height).toFloat()*motion.value
                 if(a>0) drawRoundRect(income,Offset(x+width*.22f,bottom-a),Size(bar,a),CornerRadius(3.dp.toPx()))
                 if(b>0) drawRoundRect(expense,Offset(x+width*.55f,bottom-b),Size(bar,b),CornerRadius(3.dp.toPx()))
                 paint.textAlign=Paint.Align.CENTER
@@ -152,7 +170,10 @@ import kotlin.math.*
             Column(Modifier.weight(1f)) { Subtitle("支出"); Money(values[selected].expense,size=20) }
         }
         Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceEvenly) {
-            months.indices.forEach { i -> TextButton({selected=i},contentPadding=PaddingValues(2.dp),modifier=Modifier.weight(1f)) { Text("${months[i].monthValue}月",fontSize=12.sp) } }
+            months.indices.forEach { i -> TextButton({selected=i},contentPadding=PaddingValues(2.dp),modifier=Modifier.weight(1f).heightIn(min=48.dp).semantics {
+                this.selected=selected==i
+                contentDescription="选择${months[i]}，收入${values[i].income.money()}元，支出${values[i].expense.money()}元"
+            }) { Text("${months[i].monthValue}月",fontSize=12.sp) } }
         }
     }
 }

@@ -9,5 +9,5 @@ fi
 if (( $# )); then
   exec ./gradlew "$@"
 else
-  exec ./gradlew :app:assembleDebug :app:assembleRelease :app:assembleDebugAndroidTest :app:lintDebug --max-workers=4
+  exec ./gradlew :app:assembleDebug :app:assembleDemo :app:assembleDebugAndroidTest :app:lintDebug --max-workers=4
 fi

@@ -1,0 +1,59 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8"><meta name="viewport" content="width=device-width, initial-scale=1">
+<title>航小账 · 实时交互预览</title>
+<style>
+*{box-sizing:border-box}body{margin:0;background:#f5f7fb;color:#172033;font-family:system-ui,-apple-system,"Microsoft YaHei",sans-serif}main{max-width:1080px;margin:auto;padding:28px 24px}.brand{display:flex;align-items:center;gap:12px;margin-bottom:28px}.logo{display:grid;place-items:center;width:44px;height:44px;background:#2257b8;color:white;border-radius:14px;font-weight:700;font-size:22px}h1{font-size:22px;margin:0}small{color:#526176}header{display:flex;align-items:center;justify-content:space-between}.status{display:flex;gap:7px;align-items:center;font-size:13px;color:#526176}.dot{width:8px;height:8px;background:#b45309;border-radius:50%}.online .dot{background:#0f766e}.layout{display:grid;grid-template-columns:minmax(280px,390px) 1fr;gap:44px;align-items:start}.device{background:#101827;border:8px solid #172033;border-radius:32px;overflow:hidden;box-shadow:0 18px 54px #17203322;margin:auto;width:100%;max-width:360px;line-height:0}.screen{width:100%;height:auto;display:block;min-height:400px;touch-action:none;user-select:none;cursor:pointer}.tools{display:flex;gap:10px;justify-content:center;margin-top:16px}button{border:0;border-radius:12px;padding:12px 16px;cursor:pointer;font:inherit;font-size:14px;background:#e7eefc;color:#194080;transition:background .15s}button:hover{background:#d6e4ff}button.primary{background:#2257b8;color:white}button:disabled{opacity:.5;cursor:wait}section{border:1px solid #e2e8f0;background:white;padding:24px;border-radius:20px;margin-bottom:18px}h2{margin:0 0 10px;font-size:20px}p{color:#526176;line-height:1.8;font-size:14px;margin:0 0 14px}ol{padding-left:22px;color:#526176;font-size:14px;line-height:2.1;margin:8px 0}label{font-size:13px;color:#526176}input[type=text]{width:100%;border:1px solid #ccd6e4;border-radius:12px;padding:14px;font:inherit;margin:8px 0 12px;outline:none}input:focus{border-color:#2257b8;box-shadow:0 0 0 3px #2257b815}.row{display:flex;justify-content:space-between;align-items:center;gap:12px}.hint{font-size:12px;color:#758197}.toast{position:fixed;bottom:24px;left:50%;transform:translateX(-50%);max-width:90%;background:#172033;color:#fff;border-radius:12px;padding:12px 18px;line-height:1.6;z-index:10;display:none}code{background:#eef2f8;padding:3px 7px;border-radius:6px;font-size:12px}@media(max-width:720px){main{padding:20px 16px}.layout{grid-template-columns:1fr;gap:28px}.brand{margin-bottom:20px}header{gap:12px}h1{font-size:19px}.status{font-size:11px}section{padding:20px}}
+a{color:#2257b8;text-underline-offset:3px}a:hover{color:#194080}button:focus-visible,a:focus-visible{outline:3px solid #6c9bec;outline-offset:3px}
+</style>
+</head>
+<body><main>
+<header><div class="brand"><span class="logo">航</span><div><h1>航小账 · 实时交互</h1><small>运行在 Android 模拟器中的真实应用</small></div></div><div class="status" id="status"><span class="dot"></span><span id="state">连接设备中</span></div></header>
+<div class="layout"><div><div class="device"><img id="screen" class="screen" alt="实时 Android 设备画面" draggable="false"></div><div class="tools"><button onclick="act({action:'key',key:'back'})">← 返回</button><button onclick="act({action:'key',key:'home'})">系统桌面</button><button class="primary" onclick="act({action:'launch'})">打开航小账</button></div></div>
+<aside><section><h2>直接点，就能体验。</h2><p>点击左侧画面操作；按住拖动可以上下滑动。这里展示和控制的是实时设备画面。</p><ol><li>点底部中间加号，新增收入或支出。</li><li>在总览调整预算，观察剩余和超支状态。</li><li>进入统计，点击图段或月份查看金额。</li><li>在账目里体验文本记账和 CSV 预览。</li><li>在缴费里设置计划、提醒和已缴状态。</li></ol><p class="hint">设备中保留了标有“示例”的校园演示数据，操作会保存在该模拟器中。</p></section>
+<section><h2>输入金额与备注</h2><p>先点击应用中的输入框，再在这里输入金额或文字。支持中文。</p><form id="input-form"><input type="text" id="text" placeholder="例如 12.50 或 食堂午餐" maxlength="200" autocomplete="off"><div class="row"><label><input type="checkbox" id="replace" checked> 替换当前内容</label><button type="submit" class="primary">输入到设备</button></div></form></section>
+<section><h2>在自己的手机上体验</h2><p><a href="https://github.com/Ouniverse-X/AeroLedger/raw/refs/heads/main/releases/AeroLedger-v1.1.apk">下载 AeroLedger 安装包</a>，Android 8.0 及以上可用。</p><p class="hint">右上角设置可切换浅深色主题、完整备份和载入校园示例。</p></section></aside></div>
+</main><div class="toast" id="toast"></div>
+<script>
+const key='__PREVIEW_TOKEN__',screen=document.querySelector('#screen');let timer,origin=null;
+function toast(message){const e=document.querySelector('#toast');e.textContent=message;e.style.display='block';clearTimeout(timer);timer=setTimeout(()=>e.style.display='none',4500)}
+const queue=[];let sending=false;
+function act(body){return new Promise(resolve=>{
+ const last=queue[queue.length-1];
+ if(last && body.action==='touch' && body.phase==='move' && last.body.action==='touch' && last.body.phase==='move'){
+  last.resolve();queue.pop();
+ }else if(last && body.action==='scroll' && last.body.action==='scroll'){
+  body.delta=Math.max(-8,Math.min(8,last.body.delta+body.delta));last.resolve();queue.pop();
+ }
+ queue.push({body,resolve});pump();
+})}
+async function pump(){if(sending)return;sending=true;
+ try{while(queue.length){const item=queue.shift();try{
+  const r=await fetch('/action',{method:'POST',headers:{'Content-Type':'application/json','X-Preview-Key':key},body:JSON.stringify(item.body),signal:AbortSignal.timeout(4000)});
+  const data=await r.json();if(!r.ok)throw Error(data.error||'操作失败');
+ }catch(e){toast(e.name==='TimeoutError'?'连接暂时中断，请重试':e.message)}finally{item.resolve()}}}
+ finally{sending=false}
+}
+let streamAt=0,checking=false;
+function connectStream(){if(document.hidden)return;streamAt=Date.now();screen.src='/stream.mjpeg?t='+streamAt}
+function status(online,message){document.querySelector('#status').classList.toggle('online',online);document.querySelector('#state').textContent=message}
+async function checkHealth(){if(document.hidden||checking)return;checking=true;try{
+ const r=await fetch('/health',{signal:AbortSignal.timeout(4000)});const data=await r.json();
+ if(data.session && data.session!==key.slice(0,8)){location.reload();return}
+ if(!r.ok||!data.ready)throw Error('等待设备连接');
+ status(true,'实时连接'+(data.fps>0?' · '+data.fps+' 帧/秒':''));
+ if(!screen.getAttribute('src')||(!screen.naturalWidth&&Date.now()-streamAt>4000))connectStream();
+}catch(e){status(false,'正在重新连接');if(Date.now()-streamAt>4000)connectStream()}finally{checking=false}}
+screen.addEventListener('error',()=>{status(false,'正在重新连接');setTimeout(connectStream,1000)});
+function point(e){const r=screen.getBoundingClientRect();return{x:Math.max(0,Math.min(1,(e.clientX-r.left)/r.width)),y:Math.max(0,Math.min(1,(e.clientY-r.top)/r.height))}}
+screen.addEventListener('pointerdown',e=>{if(origin!==null||e.button!==0)return;e.preventDefault();origin=e.pointerId;screen.setPointerCapture(e.pointerId);act({action:'touch',phase:'down',...point(e)})});
+screen.addEventListener('pointermove',e=>{if(origin!==e.pointerId)return;e.preventDefault();act({action:'touch',phase:'move',...point(e)})});
+screen.addEventListener('pointerup',e=>{if(origin!==e.pointerId)return;act({action:'touch',phase:'up',...point(e)});origin=null});
+screen.addEventListener('pointercancel',e=>{if(origin!==e.pointerId)return;act({action:'touch',phase:'cancel',...point(e)});origin=null});
+screen.addEventListener('lostpointercapture',()=>{if(origin!==null){act({action:'touch',phase:'cancel',x:.5,y:.5});origin=null}});
+screen.addEventListener('wheel',e=>{e.preventDefault();const unit=e.deltaMode===1?16:e.deltaMode===2?screen.clientHeight:1;act({action:'scroll',...point(e),delta:Math.max(-4,Math.min(4,e.deltaY*unit/100))})},{passive:false});
+document.querySelector('#input-form').addEventListener('submit',e=>{e.preventDefault();act({action:'text',text:document.querySelector('#text').value,replace:document.querySelector('#replace').checked})});
+setInterval(checkHealth,2000);connectStream();checkHealth();
+document.addEventListener('visibilitychange',()=>{if(document.hidden){if(origin!==null){act({action:'touch',phase:'cancel',x:.5,y:.5});origin=null}screen.removeAttribute('src')}else{connectStream();checkHealth()}});
+</script></body></html>

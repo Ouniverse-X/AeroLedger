@@ -4,6 +4,12 @@ plugins {
     id 'com.google.devtools.ksp'
 }
 
+def signingProperties = new Properties()
+def signingFile = rootProject.file('signing/release.properties')
+if (signingFile.exists()) signingFile.withInputStream { signingProperties.load(it) }
+def signingValue = { String name -> System.getenv('AEROLEDGER_' + name) ?: signingProperties.getProperty(name, '') }
+def hasReleaseSigning = ['STORE_FILE', 'STORE_PASSWORD', 'KEY_ALIAS', 'KEY_PASSWORD'].every { signingValue(it) }
+
 android {
     namespace 'cn.edu.buaa.ledger'
     compileSdk 35
@@ -13,8 +19,8 @@ android {
         applicationId 'cn.edu.buaa.ledger'
         minSdk 26
         targetSdk 35
-        versionCode 1
-        versionName '1.0'
+        versionCode 2
+        versionName '1.1'
         testInstrumentationRunner 'androidx.test.runner.AndroidJUnitRunner'
     }
     compileOptions {
@@ -25,17 +31,39 @@ android {
     buildFeatures { compose true; buildConfig true }
     composeOptions { kotlinCompilerExtensionVersion '1.5.14' }
     packaging { resources.excludes += '/META-INF/{AL2.0,LGPL2.1}' }
+    signingConfigs {
+        if (hasReleaseSigning) {
+            production {
+                storeFile rootProject.file(signingValue('STORE_FILE'))
+                storePassword signingValue('STORE_PASSWORD')
+                keyAlias signingValue('KEY_ALIAS')
+                keyPassword signingValue('KEY_PASSWORD')
+            }
+        }
+    }
     buildTypes {
         release {
             minifyEnabled true
             shrinkResources true
-            signingConfig signingConfigs.debug
+            signingConfig hasReleaseSigning ? signingConfigs.production : null
             proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
         }
+        demo {
+            initWith release
+            signingConfig signingConfigs.debug
+            matchingFallbacks = ['release']
+        }
     }
-    bundle { language { enableSplit false } }
+    bundle { language { enableSplit = false } }
     lint { abortOnError true }
 }
+
+tasks.register('checkReleaseSigning') {
+    doLast {
+        if (!hasReleaseSigning) throw new GradleException('Release signing is required. Run python3 scripts/prepare-signing.py or configure AEROLEDGER_STORE_FILE, STORE_PASSWORD, KEY_ALIAS and KEY_PASSWORD. Use assembleDemo for the classroom build.')
+    }
+}
+afterEvaluate { tasks.named('preReleaseBuild').configure { dependsOn tasks.named('checkReleaseSigning') } }
 
 ksp { arg('room.schemaLocation', "$projectDir/schemas") }
 

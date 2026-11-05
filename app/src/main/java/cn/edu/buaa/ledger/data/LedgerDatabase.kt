@@ -4,6 +4,10 @@ import androidx.room.*
 import cn.edu.buaa.ledger.Entry
 import kotlinx.coroutines.flow.Flow
 import java.time.LocalDate
+import cn.edu.buaa.ledger.domain.*
+
+private const val RANGE = " FROM transactions WHERE dateEpochDay BETWEEN :start AND :end AND (:type IS NULL OR type=:type) AND (:category IS NULL OR categoryCode=:category) AND instr(lower(note),lower(:query))>0 "
+private const val TOTALS = "COALESCE(SUM(CASE WHEN type='expense' THEN amountCents ELSE 0 END),0) AS expense, COALESCE(SUM(CASE WHEN type='income' THEN amountCents ELSE 0 END),0) AS income"
 
 @Entity(tableName = "categories")
 data class CategoryEntity(@PrimaryKey val code: String, val name: String, val type: String, val sortOrder: Int)
@@ -43,6 +47,20 @@ data class ImportReceipt(val fileHash: String, val ordinal: Int, val transaction
 
 @Dao
 interface LedgerDao {
+    @Query("SELECT (SELECT COUNT(*) FROM transactions)+(SELECT COUNT(*) FROM monthly_budgets)+(SELECT COUNT(*) FROM payment_plans)+(SELECT COUNT(*) FROM monthly_reviews)")
+    fun observeChanges(): Flow<Long>
+    @Query("SELECT *" + RANGE + "ORDER BY dateEpochDay DESC, createdAt DESC, id DESC LIMIT :limit")
+    suspend fun page(start: Long, end: Long, type: String?, category: String?, query: String, limit: Int): List<TransactionEntity>
+    @Query("SELECT " + TOTALS + ", COUNT(*) AS count" + RANGE)
+    suspend fun totals(start: Long, end: Long, type: String?, category: String?, query: String): Totals
+    @Query("SELECT categoryCode, SUM(amountCents) AS amountCents" + RANGE + "AND type='expense' GROUP BY categoryCode ORDER BY amountCents DESC, categoryCode")
+    suspend fun categoryTotals(start: Long, end: Long, type: String?, category: String?, query: String): List<CategoryAmount>
+    @Query("SELECT strftime('%Y-%m',dateEpochDay*86400,'unixepoch') AS month," + TOTALS + RANGE + "GROUP BY month ORDER BY month")
+    suspend fun trendTotals(start: Long, end: Long, type: String?, category: String?, query: String): List<MonthAmount>
+    @Query("SELECT dateEpochDay," + TOTALS + ", COUNT(*) AS count" + RANGE + "GROUP BY dateEpochDay ORDER BY dateEpochDay DESC")
+    suspend fun dayTotals(start: Long, end: Long, type: String?, category: String?, query: String): List<DayAmount>
+    @Query("SELECT * FROM transactions WHERE dateEpochDay BETWEEN :start AND :end ORDER BY dateEpochDay DESC, createdAt DESC, id DESC")
+    fun observeMonth(start: Long, end: Long): Flow<List<TransactionEntity>>
     @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, createdAt DESC, id DESC")
     fun observeTransactions(): Flow<List<TransactionEntity>>
     @Query("SELECT * FROM monthly_budgets") fun observeBudgets(): Flow<List<BudgetEntity>>
@@ -51,6 +69,8 @@ interface LedgerDao {
     @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, createdAt DESC") suspend fun transactions(): List<TransactionEntity>
     @Query("SELECT * FROM transactions WHERE id=:id") suspend fun transaction(id: String): TransactionEntity?
     @Upsert suspend fun saveTransaction(item: TransactionEntity)
+    @Upsert suspend fun saveTransactions(items: List<TransactionEntity>)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertIfMissing(item: TransactionEntity): Long
     @Query("DELETE FROM transactions WHERE id=:id") suspend fun deleteTransaction(id: String)
     @Upsert suspend fun saveBudget(item: BudgetEntity)
     @Query("SELECT * FROM monthly_budgets WHERE month=:month") suspend fun budget(month: String): BudgetEntity?
@@ -65,6 +85,16 @@ interface LedgerDao {
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun seedCategories(items: List<CategoryEntity>)
     @Query("SELECT * FROM import_rows WHERE fileHash=:hash") suspend fun receipts(hash: String): List<ImportReceipt>
     @Insert suspend fun saveReceipt(item: ImportReceipt)
+    @Query("SELECT * FROM metadata") suspend fun metadata(): List<MetaEntity>
+    @Query("SELECT * FROM import_rows") suspend fun allReceipts(): List<ImportReceipt>
+    @Query("DELETE FROM transactions") suspend fun clearTransactions()
+    @Query("DELETE FROM monthly_budgets") suspend fun clearBudgets()
+    @Query("DELETE FROM payment_plans") suspend fun clearPlans()
+    @Query("DELETE FROM monthly_reviews") suspend fun clearReviews()
+    @Query("DELETE FROM metadata") suspend fun clearMetadata()
+    @Query("DELETE FROM import_rows") suspend fun clearReceipts()
+    @Upsert suspend fun restorePlan(item: PaymentPlan)
+    @Upsert suspend fun restoreReceipt(item: ImportReceipt)
 }
 
 @Database(entities = [CategoryEntity::class, TransactionEntity::class, BudgetEntity::class, PaymentPlan::class,
