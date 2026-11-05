@@ -35,7 +35,7 @@ KEY_PASSWORD=YOUR_PRIVATE_KEY_PASSWORD
 
 ## CI and GitHub Releases
 
-`.github/workflows/android.yml` 在 push / PR 时运行业务断言、构建、lint，以及 API 26、33、35 的设备回归和生命周期检查。开发产物证书由 CI 环境决定，仅用于开发验证。
+`.github/workflows/android.yml` 在 push / PR 时只运行业务断言、APK 构建和 lint，不启动模拟器。API 26、33、35 的设备回归已在本次交付中执行，相关手工脚本仍保留供开发者按需使用。开发产物证书由 CI 环境决定，仅用于开发验证。
 
 `.github/workflows/release.yml` 在 `v*` 标签时验证标签与 `versionName` 一致，再构建固定签名 APK、计算校验值并创建 GitHub Release。需配置仓库 Actions secrets：
 
@@ -53,4 +53,4 @@ git tag v1.1
 git push origin v1.1
 ```
 
-同一个版本标签不重复发布或移动。正式签名证书摘要与各 APK 的 SHA-256 可用于核验安装包来源。
+发布失败后可在 Signed release 工作流手动输入已有标签重试；工作流会更新该 Release 的产物，不移动标签。正式签名证书摘要与各 APK 的 SHA-256 可用于核验安装包来源。

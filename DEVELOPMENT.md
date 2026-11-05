@@ -87,6 +87,6 @@ Compose Preview 基线位于 `ui/DesignPreviews.kt`。产品结构和业务边�
 - `data/DraftStore.kt`：表单草稿与原子传输文件缓存。
 - `ui/FormDrafts.kt`、`ui/BackupSheets.kt`：草稿持久化和恢复界面。
 - `LedgerRepository.window()`：范围查询、SQL 聚合、分页与最近五笔；完整导出使用独立查询。
-- `.github/workflows/`：固定 SHA 的自动检查、设备矩阵与签名发布。
+- `.github/workflows/`：固定 SHA 的自动检查、APK 检查与签名发布。
 
 调整筛选时同步检查列表、分类图、趋势和筛选导出。预算及消费回顾保持全月全部类别，备注搜索不改变月度预算口径。新备份字段需升级文件格式或维持明确兼容策略；数据库 schema 本版仍为 Room v1，1.0 → 1.1 不清库。

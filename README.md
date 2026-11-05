@@ -68,7 +68,7 @@ scripts/              Build and test entry points
 tests/                JVM business-rule tests
 gradle/wrapper/       Gradle Wrapper and distribution checksum
 releases/             Classroom and fixed-signature APKs, checksums
-.github/workflows/    Build, API 26/33/35 tests and signed release
+.github/workflows/    APK build, lint and signed release
 ```
 
 已验证：48 项 JVM 规则断言通过，API 26 / 33 / 35 模拟器各 12 项设备测试通过；debug 与固定签名 release 的 lint 通过。另验证了 v1.0 → v1.1 升级、后台进程重建及草稿恢复。真实物理机和厂商节电策略尚未覆盖，见 [DEVICE_TESTING.md](DEVICE_TESTING.md)。
@@ -79,9 +79,9 @@ releases/             Classroom and fixed-signature APKs, checksums
 
 应用不申请网络权限，不读取银行、支付账户、短信或其他应用通知。文本提取与消费回顾使用本地规则，无模型调用和费用。CSV 使用系统文件选择器授权，仅包含账目；换机或卸载前请在设置中导出完整备份，一并保留预算、缴费计划与回顾。备份文件含个人内容，需自行妥善保存；它不包含未保存草稿。
 
-## Browser Preview
+## Optional Browser Preview
 
-安装 Python 3、ADB 和 FFmpeg，启动 Android 模拟器后运行：
+后续以 APK 真机体验为默认方式，自动检查不会启动模拟器。以下仅为保留的可选开发工具，需使用时主动启动设备：
 
 ```bash
 ./scripts/start-preview.sh
