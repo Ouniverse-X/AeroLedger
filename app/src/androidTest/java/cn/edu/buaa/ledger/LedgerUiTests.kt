@@ -9,32 +9,10 @@ import kotlinx.coroutines.runBlocking
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
-import org.junit.Assert.*
-import cn.edu.buaa.ledger.data.*
-import java.time.LocalDate
 
 @RunWith(AndroidJUnit4::class)
 class LedgerUiTests {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
-
-    @Test fun searchDeleteAndUndoRestoreTheSameEntry() {
-        val app=ApplicationProvider.getApplicationContext<LedgerApp>()
-        val id="undo-ui-"+java.util.UUID.randomUUID().toString()
-        runBlocking{app.ensureInitialized();app.repository.saveEntry(TransactionEntity(id,"expense",1250,LocalDate.now().toEpochDay(),"food",id))}
-        try {
-            compose.waitUntil(30000){compose.onAllNodesWithTag("primary-add",useUnmergedTree=true).fetchSemanticsNodes().isNotEmpty()}
-            compose.onNodeWithText("账目",useUnmergedTree=true).performClick()
-            compose.onNodeWithText("搜索备注").performScrollTo().performTextInput(id)
-            compose.onNodeWithTag("entries-list").performScrollToNode(hasText(id) and !hasSetTextAction())
-            compose.onNode(hasText(id) and !hasSetTextAction()).performScrollTo().performSemanticsAction(SemanticsActions.OnClick){it()}
-            compose.onNodeWithText("删除这笔账目").performScrollTo().performClick()
-            compose.onNodeWithText("删除账目").performClick()
-            compose.waitUntil(10000){runBlocking{app.repository.dao.transaction(id)==null}}
-            compose.onNodeWithText("撤销").performClick()
-            compose.waitUntil(10000){runBlocking{app.repository.dao.transaction(id)!=null}}
-            assertEquals(1250L,runBlocking{app.repository.dao.transaction(id)!!.amountCents})
-        }finally{runBlocking{app.repository.dao.deleteTransaction(id)};DraftStore(app).clear("entry:$id")}
-    }
 
     @Test fun recordEditBudgetAndScreens() {
       val note="界面测试午餐-"+java.util.UUID.randomUUID().toString().take(8)
@@ -50,7 +28,6 @@ class LedgerUiTests {
         compose.onNodeWithText("保存账目").performClick()
         compose.waitUntil(10000){compose.onAllNodesWithText("记一笔校园日常").fetchSemanticsNodes().isEmpty()}
         compose.onNodeWithText("账目",useUnmergedTree=true).performClick()
-        compose.onNodeWithTag("entries-list").performScrollToNode(hasText(note))
         compose.onNodeWithText(note).assertExists()
         compose.onNodeWithText(note).performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(10000){compose.onAllNodesWithText("编辑账目").fetchSemanticsNodes().isNotEmpty()}

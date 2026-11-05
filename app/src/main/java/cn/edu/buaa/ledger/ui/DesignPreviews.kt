@@ -25,4 +25,4 @@ private fun designData(): LedgerData {
 @Preview(name="统计 · 浅色",widthDp=411,heightDp=1100,showBackground=true)
 @Composable private fun StatsPreview() {LedgerTheme("light"){Surface {StatisticsScreen(designData(),FilterSpec(YearMonth.of(2026,11)),{}, {}, {})}}}
 @Preview(name="记账 · 浅色",widthDp=411,heightDp=950,showBackground=true)
-@Composable private fun EditorPreview() {LedgerTheme("light"){Surface {EntryEditor(null,LocalDate.of(2026,11,4),false,{_,_->},{},{_,_->})}}}
+@Composable private fun EditorPreview() {LedgerTheme("light"){Surface {EntryEditor(null,LocalDate.of(2026,11,4),false,{_,_->},{},{})}}}

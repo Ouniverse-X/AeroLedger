@@ -16,7 +16,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
-import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.*
 import cn.edu.buaa.ledger.data.*
@@ -84,8 +83,7 @@ import java.time.format.DateTimeFormatter
 
 @Composable fun Overview(data: LedgerData, filter: FilterSpec, change: (FilterSpec)->Unit, onBudget:()->Unit,
     onEntry:(TransactionEntity)->Unit, onAll:()->Unit, onPayments:()->Unit, onDemo:()->Unit) {
-    val monthEntries=remember(data.entries,data.recentEntries,filter.month) { data.recentEntries ?: data.monthEntries(filter.month) }
-    val total=data.monthlyTotals ?: remember(monthEntries) { monthEntries.totals() }
+    val monthEntries=data.monthEntries(filter.month); val total=monthEntries.totals()
     val compact=LocalConfiguration.current.screenHeightDp<500
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         if(!compact)item { PageTitle("校园日常，心中有数。","记下每一笔，留点余量给喜欢的生活。") }
@@ -163,18 +161,12 @@ import java.time.format.DateTimeFormatter
             LedgerChip(filter.type==type,{change(filter.copy(type=type,category=if(type!=null && campusCategories.firstOrNull{it.code==filter.category}?.type!=type) null else filter.category))},label={Text(name)})
         }
     }
-    OutlinedTextField(filter.query,{change(filter.copy(query=it.take(200)))},Modifier.fillMaxWidth(),
-        label={Text("搜索备注")},placeholder={Text("例如：食堂、打印、地铁")},singleLine=true,
-        leadingIcon={Icon(Icons.Outlined.Search,null)},shape=RoundedCornerShape(14.dp),
-        trailingIcon={if(filter.query.isNotEmpty())IconButton({change(filter.copy(query=""))}){Icon(Icons.Outlined.Close,"清除搜索")}})
 }
 
-@Composable fun EntriesScreen(data: LedgerData,filter: FilterSpec,change:(FilterSpec)->Unit,onEntry:(TransactionEntity)->Unit,onCsv:()->Unit,onText:()->Unit,onMore:()->Unit={}) {
-    val entries=remember(data.entries,filter) { filter.select(data.entries) }
-    val total=data.filteredTotals ?: remember(entries) { entries.totals() }
-    val days=remember(entries) { entries.groupBy { it.dateEpochDay } }
-    val daily=remember(data.dailyTotals) { data.dailyTotals.associateBy { it.dateEpochDay } }
-    LazyColumn(Modifier.testTag("entries-list"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+@Composable fun EntriesScreen(data: LedgerData,filter: FilterSpec,change:(FilterSpec)->Unit,onEntry:(TransactionEntity)->Unit,onCsv:()->Unit,onText:()->Unit) {
+    val entries=filter.select(data.entries);val total=entries.totals()
+    var limit by rememberSaveable(filter) { mutableIntStateOf(50) }
+    LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         item { PageTitle("每一笔，都有迹可循。","按日期与类别，找到想核对的日常。") }
         item { Column { Filters(filter,change) } }
         item { Panel {
@@ -183,39 +175,36 @@ import java.time.format.DateTimeFormatter
                 Column(Modifier.weight(1f)) { Subtitle("筛选收入");Money(total.income,Modifier.fillMaxWidth(),size=23,color=MaterialTheme.colorScheme.secondary) }
             }
             HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-            Subtitle("${filter.label} · ${total.count} 笔 · 结余 ¥${total.balance.money()}")
+            Subtitle("${filter.label} · ${entries.size} 笔 · 结余 ¥${total.balance.money()}")
         } }
         item { Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             FilledTonalButton(onText,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.AutoAwesome,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("文本记账") }
             OutlinedButton(onCsv,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.ImportExport,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("导入导出") }
         } }
         if(entries.isEmpty()) item { EmptyState("没有符合条件的账目","试试调整日期或类别，也可以新记一笔。") }
-        days.forEach { (date,rows) ->
+        entries.take(limit).groupBy { it.dateEpochDay }.forEach { (date,rows) ->
             item(key="date-$date") {
-                val t=daily[date]?.let { Totals(it.expense,it.income,it.count) } ?: remember(rows) { rows.totals() }
+                val t=entries.filter {it.dateEpochDay==date}.totals()
                 Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
                     Text(LocalDate.ofEpochDay(date).format(DateTimeFormatter.ofPattern("M 月 d 日")),style=MaterialTheme.typography.titleMedium)
                     Subtitle("支 ¥${t.expense.money()} · 收 ¥${t.income.money()}")
                 }
             }
-            items(rows,key={it.id},contentType={"entry"}) { e ->
-                Surface(shape=RoundedCornerShape(16.dp),color=MaterialTheme.colorScheme.surface,
-                    border=BorderStroke(1.dp,MaterialTheme.colorScheme.outlineVariant.copy(alpha=.4f))) {
-                    Box(Modifier.padding(horizontal=16.dp)) { EntryRow(e) {onEntry(e)} }
-                }
-            }
+            item(key="list-$date") { Panel {
+                rows.forEachIndexed { i,e -> if(i>0) HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.55f));EntryRow(e) {onEntry(e)} }
+            } }
         }
-        if(total.count>entries.size) item { OutlinedButton(onMore,Modifier.fillMaxWidth()) { Text("继续显示 · 已加载 ${entries.size} / ${total.count} 笔") } }
+        if(entries.size>limit) item { OutlinedButton({limit+=50},Modifier.fillMaxWidth()) { Text("继续显示 · 共 ${entries.size} 笔") } }
     }
 }
 
 @Composable fun StatisticsScreen(data: LedgerData,filter: FilterSpec,change:(FilterSpec)->Unit,onDetails:(FilterSpec)->Unit,onReview:()->Unit) {
-    val entries=remember(data.entries,filter) { filter.select(data.entries) }
+    val entries=filter.select(data.entries)
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         item { PageTitle("花在哪里，一目了然。","把数字看清楚，把生活安排好。") }
         item { Column { Filters(filter,change) } }
         item { Subtitle("分类图范围：${filter.label} · ${filter.category?.let(::categoryName)?:"全部类别"}") }
-        item { CategoryDonut(entries,data.categoryTotals) {code->onDetails(filter.copy(category=code,type="expense"))} }
+        item { CategoryDonut(entries) {code->onDetails(filter.copy(category=code,type="expense"))} }
         item { MonthlyTrend(data,filter) {m->onDetails(filter.copy(month=m,day=null))} }
         item { Panel {
             Row(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically) {

@@ -24,38 +24,6 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
         entries, budgets, plans, reviews -> LedgerData(entries, budgets, plans, reviews, true)
     }
 
-    /** One consistent SQL snapshot; UI never loads the full transaction history. */
-    @OptIn(ExperimentalCoroutinesApi::class)
-    fun window(filter: FilterSpec, limit: Int): Flow<LedgerData> = dao.observeChanges().mapLatest {
-        database.withTransaction {
-            val start = (filter.day ?: filter.month.atDay(1)).toEpochDay()
-            val end = (filter.day ?: filter.month.atEndOfMonth()).toEpochDay()
-            val monthStart = filter.month.atDay(1).toEpochDay()
-            val monthEnd = filter.month.atEndOfMonth().toEpochDay()
-            LedgerData(
-                dao.page(start,end,filter.type,filter.category,filter.query.trim(),limit.coerceIn(50,50000)),
-                dao.observeBudgets().first(), dao.plans(), dao.observeReviews().first(), true,
-                dao.totals(start,end,filter.type,filter.category,filter.query.trim()),
-                dao.totals(monthStart,monthEnd,null,null,""),
-                dao.categoryTotals(start,end,filter.type,filter.category,filter.query.trim()),
-                dao.trendTotals(filter.month.minusMonths(5).atDay(1).toEpochDay(),monthEnd,filter.type,filter.category,filter.query.trim()),
-                dao.dayTotals(start,end,filter.type,filter.category,filter.query.trim()),
-                dao.page(monthStart,monthEnd,null,null,"",5)
-            )
-        }
-    }.flowOn(Dispatchers.IO)
-
-    suspend fun filteredEntries(filter: FilterSpec): List<TransactionEntity> = dao.page(
-        (filter.day ?: filter.month.atDay(1)).toEpochDay(), (filter.day ?: filter.month.atEndOfMonth()).toEpochDay(),
-        filter.type, filter.category, filter.query.trim(), Int.MAX_VALUE)
-
-    suspend fun deleteForUndo(id: String): TransactionEntity? = database.withTransaction {
-        dao.transaction(id)?.also { dao.deleteTransaction(id) }
-    }
-    suspend fun undoDelete(item: TransactionEntity) {
-        require(dao.insertIfMissing(item) != -1L) { "同编号账目已存在，未覆盖现有记录" }
-    }
-
     suspend fun initialize() {
         dao.seedCategories(campusCategories)
         migratePrototype()
@@ -110,21 +78,16 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
     suspend fun commitImport(preview: ImportPreview, keepSuspicious: Boolean): ImportOutcome = database.withTransaction {
         var added = 0; var skipped = 0
         val receipts = dao.receipts(preview.hash).map { it.ordinal }.toMutableSet()
-        val current = dao.transactions()
-        val ids = current.map { it.id }.toMutableSet()
-        val fingerprints = current.map { it.toEntry().fingerprint() }.toMutableSet()
-        val accepted = mutableListOf<TransactionEntity>()
         for (row in preview.rows) {
             val entry = row.entry
             if (entry == null) continue
-            if (row.state == "duplicate" || row.ordinal in receipts || entry.id in ids ||
-                (row.state == "suspicious" || entry.toEntry().fingerprint() in fingerprints) && !keepSuspicious) { skipped++; continue }
+            if (row.state == "duplicate" || row.ordinal in receipts || dao.transaction(entry.id) != null ||
+                row.state == "suspicious" && !keepSuspicious) { skipped++; continue }
             LedgerRules.validate(entry.toEntry())
-            accepted.add(entry);ids.add(entry.id);fingerprints.add(entry.toEntry().fingerprint())
+            dao.saveTransaction(entry)
             dao.saveReceipt(ImportReceipt(preview.hash, row.ordinal, entry.id))
             receipts.add(row.ordinal); added++
         }
-        dao.saveTransactions(accepted)
         ImportOutcome(added, skipped, preview.invalid)
     }
 

@@ -1,12 +1,10 @@
-# Installable Builds
+# Application Package
 
-- [AeroLedger-v1.1.apk](AeroLedger-v1.1.apk)：课程兼容版，沿用 v1.0 签名，可覆盖更新。
-- [AeroLedger-v1.1-stable.apk](AeroLedger-v1.1-stable.apk)：固定发布签名，新安装或按完整备份流程迁移后使用。
-- [SHA256SUMS](SHA256SUMS)：各 APK 对应校验值。
-- [AeroLedger-release-certificate.pem](AeroLedger-release-certificate.pem)：固定签名的公开证书，不包含私钥。
+- [Download AeroLedger-v1.0.apk](https://github.com/Ouniverse-X/AeroLedger/raw/refs/heads/main/releases/AeroLedger-v1.0.apk)
+- [SHA256SUMS](SHA256SUMS)
 
-支持 Android 8.0 / API 26 以上。无需 Android Studio、账号或网络。通知需在各自设备授权；每台设备独立保存账本。
+最低支持 Android 8.0 / API 26，版本 1.0。安装时按系统提示允许当前来源安装应用；无需 Android Studio 或测试账号。
 
-签名不同的安装包无法直接相互覆盖。v1.0 成员先覆盖课程 v1.1 并导出完整备份，再按 [RELEASE.md](../RELEASE.md) 迁移固定签名版。备份同时保留预算、计划、回顾和主题，CSV 只包含账目。
+APK 为开发机 debug 签名的压缩 release 构建，用于课程演示。每个成员的数据独立保存在各自手机；目前不提供跨设备同步。缴费提醒需要各自允许系统通知，精确提醒授权可选。
 
-开发方式见 [DEVELOPMENT.md](../DEVELOPMENT.md)，备份约定见 [BACKUP_FORMAT.md](../BACKUP_FORMAT.md)。历史 v1.0 保留供升级验证。
+可复现构建与后续开发方式见 [DEVELOPMENT.md](../DEVELOPMENT.md)。

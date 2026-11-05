@@ -16,15 +16,6 @@ captures/
 /scripts/preview.html
 /scripts/start-preview.sh
 /scripts/stop-preview.sh
-!/scripts/preview-server.py
-!/scripts/start-preview.py
-!/scripts/preview.html
-!/scripts/start-preview.sh
-!/scripts/stop-preview.sh
-!/scripts/stop-preview.py
-!/scripts/test-lifecycle.py
-!/scripts/prepare-signing.py
-/signing/
 **/__pycache__/
 *.py[cod]
 

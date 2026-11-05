@@ -1,7 +1,6 @@
 package cn.edu.buaa.ledger
 
 import android.Manifest
-import android.annotation.SuppressLint
 import android.content.Intent
 import android.content.pm.PackageManager
 import android.net.Uri
@@ -19,8 +18,6 @@ import cn.edu.buaa.ledger.ui.*
 class MainActivity : ComponentActivity() {
     private val model: LedgerViewModel by viewModels()
     private var openedPlan by mutableStateOf<Long?>(null)
-    // Single Chinese UI; app/build.gradle explicitly disables bundle language splits.
-    @SuppressLint("AppBundleLocaleChanges")
     override fun attachBaseContext(base:android.content.Context) {
         val config=android.content.res.Configuration(base.resources.configuration)
         config.setLocale(java.util.Locale.SIMPLIFIED_CHINESE)
