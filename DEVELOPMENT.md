@@ -79,3 +79,14 @@ Compose Preview 基线位于 `ui/DesignPreviews.kt`。产品结构和业务边�
 ## Scope of This Repository
 
 上传内容包括应用、资源、数据库结构、测试、构建配置、英文命名的开发文档以及可安装 APK。参考仓库副本、开发缓存、课程文档、录屏和本机配置不在仓库中；上游参考与固定提交见 [REFERENCES.md](REFERENCES.md)。
+
+
+## Receipt Recognition Development
+
+保持现有单模块结构和数据库版本。`domain/EntryDraft` 表示可编辑提案；`data/EntryDrafts` 统一手动、文本、缴费和识图预填；`domain/CategoryCatalog` 是类别代码与显示名称的共同来源。新增手动字段时，应同步更新草稿与共用 `EntryEditor`。
+
+`recognition/ReceiptImageReader` 只读图并限制资源，`OcrEngine` 只返回文字和坐标，`ReceiptParser` 只生成草稿。`RecognitionViewModel` 管理识别/编辑/已保存状态，`ReceiptActivity` 处理系统选择与分享。只有用户确认时才调用原有 `LedgerRepository.saveEntry`；勿在 OCR、解析器或分享回调中直接入账。
+
+运行 `gradlew.bat :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`，并继续运行 `scripts/test-core.sh` 的 48 项核心断言。设备端测试类新增 `ReceiptDeviceTests` 与 `ReceiptUiTests`，使用动态生成的虚构图片，测试结束清理自身文件和账目；不要清空开发设备数据。
+
+离线验收需要在 API 35 模拟器关闭 Wi-Fi 并开启飞行模式后执行设备测试。原有提醒测试还需允许通知和精确闹钟，UI 测试需保持模拟器唤醒并解锁。`ReceiptUiTests` 用真实分享 Intent 测试冷/热启动，系统相册结果通过 Espresso Intents 模拟返回，尚不覆盖选择器本身。OCR 冒烟测试检验中文支付标签和金额，不要求所有字逐字无误；误识别输出和耗时以 `ReceiptEvidence` 标签写入测试日志，不能据此宣称真实平台准确率。

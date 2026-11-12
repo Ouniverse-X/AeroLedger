@@ -10,8 +10,8 @@ import java.util.Map;
 
 /** Pure business rules; money is stored as integer cents throughout the app. */
 public final class LedgerRules {
-    public static final String[] EXPENSE_CATEGORIES = {"餐饮", "购物", "交通", "学习", "生活缴费", "其他支出"};
-    public static final String[] INCOME_CATEGORIES = {"生活费", "奖助学金", "兼职", "其他收入"};
+    public static final String[] EXPENSE_CATEGORIES = cn.edu.buaa.ledger.domain.CategoryCatalog.names("expense");
+    public static final String[] INCOME_CATEGORIES = cn.edu.buaa.ledger.domain.CategoryCatalog.names("income");
     public static final long MAX_CENTS = 99_999_999L;
     private LedgerRules() { }
 
