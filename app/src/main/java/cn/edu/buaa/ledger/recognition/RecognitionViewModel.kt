@@ -1,7 +1,6 @@
 package cn.edu.buaa.ledger.recognition
 
 import android.app.Application
-import android.graphics.Bitmap
 import android.net.Uri
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.SavedStateHandle
@@ -15,9 +14,14 @@ import kotlinx.coroutines.flow.asStateFlow
 import java.io.Serializable
 
 data class RecognitionState(
-    val draft: EntryDraft? = null, val editing: Boolean = false,
-    val saved: Boolean = false, val message: String? = null, val elapsedMs: Long = 0
-) : Serializable
+    val candidates: List<ReceiptCandidate> = emptyList(), val activeId: String? = null,
+    val message: String? = null, val elapsedMs: Long = 0
+) : Serializable {
+    val draft get() = candidates.firstOrNull { it.draft.id == activeId }?.draft ?: candidates.firstOrNull()?.draft
+    val editing get() = activeId != null
+    val saved get() = candidates.isNotEmpty() && candidates.all { it.saved }
+    fun change(id: String, transform: (ReceiptCandidate) -> ReceiptCandidate) = copy(candidates = candidates.map { if (it.draft.id == id) transform(it) else it })
+}
 
 /** Owns one import session. Recognition never writes to the ledger. */
 class RecognitionViewModel(application: Application, private val savedState: SavedStateHandle) : AndroidViewModel(application) {
@@ -34,12 +38,21 @@ class RecognitionViewModel(application: Application, private val savedState: Sav
     }
 
     private fun update(next: RecognitionState) { savedState["receipt"] = next }
+    fun showMessage(message: String) { update(state.value.copy(message = message)) }
     fun updateDraft(draft: EntryDraft) {
         val current = state.value
-        if (current.editing && !current.saved && current.draft?.id == draft.id) update(current.copy(draft = draft))
+        if (current.editing && current.activeId == draft.id) update(current.change(draft.id) { if (it.saved) it else it.copy(draft = draft) })
     }
-    fun edit() { if (!working.value && !state.value.saved) update(state.value.copy(editing = true)) }
-    fun stopEditing() { if (!working.value) update(state.value.copy(editing = false)) }
+    fun select(id: String, selected: Boolean) {
+        if (!working.value && !state.value.editing) update(state.value.change(id) { if (it.saved) it else it.copy(selected = selected) })
+    }
+    fun edit() {
+        if (working.value) return
+        val current = state.value
+        val next = current.candidates.firstOrNull { !it.saved && (it.selected || current.candidates.size == 1) } ?: return
+        update(current.change(next.draft.id) { it.copy(selected = true) }.copy(activeId = next.draft.id, message = null))
+    }
+    fun stopEditing() { if (!working.value) update(state.value.copy(activeId = null)) }
 
     fun recognize(uri: Uri) {
         if (working.value) return
@@ -55,11 +68,14 @@ class RecognitionViewModel(application: Application, private val savedState: Sav
             try {
                 val lines = withContext(Dispatchers.Default) {
                     val bitmap = reader.read(uri)
-                    try { readStrips(bitmap) } finally { bitmap.recycle() }
+                    try { ChineseOcrEngine().use { it.recognizeReceipt(bitmap) } } finally { bitmap.recycle() }
                 }
                 require(lines.any { it.text.isNotBlank() }) { "未识别到文字，请选择清晰账单，或手动记账" }
+                require(lines.none { Regex("content hidden.*security|内容.*隐藏|屏幕.*保护", RegexOption.IGNORE_CASE).containsMatchIn(it.text) }) {
+                    "画面受到系统或应用保护，无法识别。请使用可导出的图片、相册或手动记账。"
+                }
                 require(lines.sumOf { it.text.length } <= 12000) { "图片文字过多，请裁剪到目标订单后重试" }
-                update(RecognitionState(draft = parser.draft(lines), elapsedMs = android.os.SystemClock.elapsedRealtime() - started))
+                update(RecognitionState(candidates = parser.candidates(lines), elapsedMs = android.os.SystemClock.elapsedRealtime() - started))
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
@@ -68,37 +84,20 @@ class RecognitionViewModel(application: Application, private val savedState: Sav
         }
     }
 
-    private suspend fun readStrips(bitmap: Bitmap): List<OcrLine> {
-        val result = mutableListOf<OcrLine>()
-        ChineseOcrEngine().use { engine ->
-            var top = 0
-            while (top < bitmap.height) {
-                currentCoroutineContext().ensureActive()
-                val height = minOf(2200, bitmap.height - top)
-                val strip = Bitmap.createBitmap(bitmap, 0, top, bitmap.width, height)
-                // ML Kit keeps the Bitmap until its task finishes; do not recycle it on coroutine cancellation.
-                val lines = try { withContext(NonCancellable) { engine.recognize(strip) } }
-                    finally { if (strip !== bitmap) strip.recycle() }
-                result += lines.map { it.copy(top = it.top + top, bottom = it.bottom + top) }
-                    .filter { line -> result.none { old -> old.text == line.text && kotlin.math.abs(old.top - line.top) < 40 } }
-                if (top + height >= bitmap.height) break
-                top += height - 160
-            }
-        }
-        return result
-    }
-
-    fun save(entry: TransactionEntity, done: () -> Unit) {
+    fun save(entry: TransactionEntity) {
         val current = state.value
-        if (working.value || current.saved || current.draft?.id != entry.id) return
+        val candidate = current.candidates.firstOrNull { it.draft.id == entry.id } ?: return
+        if (working.value || candidate.saved || !candidate.selected || current.activeId != entry.id) return
         working.value = true
         viewModelScope.launch {
             try {
                 val app = getApplication<LedgerApp>()
                 app.ensureInitialized()
                 app.repository.saveEntry(entry)
-                update(current.copy(saved = true, editing = false, message = "已保存这一笔账目"))
-                done()
+                val updated = current.change(entry.id) { it.copy(saved = true, selected = false) }
+                val next = updated.candidates.firstOrNull { it.selected && !it.saved }
+                update(updated.copy(activeId = next?.draft?.id, message = "已保存这一笔账目"))
+                // The queue owns navigation: EntryEditor's close callback must not dismiss the next draft.
             } catch (cancelled: CancellationException) {
                 throw cancelled
             } catch (failure: Exception) {
