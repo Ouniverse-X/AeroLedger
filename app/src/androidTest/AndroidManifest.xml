@@ -1,3 +1,0 @@
-<manifest xmlns:android="http://schemas.android.com/apk/res/android"><application android:label="虚构账单测试">
-<activity android:name="cn.edu.buaa.ledger.capture.CaptureFixtureActivity" android:label="虚构账单测试" android:exported="true" android:theme="@android:style/Theme.Material.Light.NoActionBar" />
-</application></manifest>

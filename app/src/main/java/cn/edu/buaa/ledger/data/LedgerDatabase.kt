@@ -71,9 +71,13 @@ interface LedgerDao {
     ReviewEntity::class, MetaEntity::class, ImportReceipt::class], version = 1, exportSchema = true)
 abstract class LedgerDatabase : RoomDatabase() { abstract fun ledger(): LedgerDao }
 
-val campusCategories = cn.edu.buaa.ledger.domain.CategoryCatalog.ALL.mapIndexed { index, category ->
-    CategoryEntity(category.code, category.name, category.type, index)
-}
+val campusCategories = listOf(
+    CategoryEntity("food", "餐饮", "expense", 0), CategoryEntity("shopping", "购物", "expense", 1),
+    CategoryEntity("transport", "交通", "expense", 2), CategoryEntity("study", "学习", "expense", 3),
+    CategoryEntity("bills", "生活缴费", "expense", 4), CategoryEntity("other", "其他支出", "expense", 5),
+    CategoryEntity("allowance", "生活费", "income", 6), CategoryEntity("scholarship", "奖助学金", "income", 7),
+    CategoryEntity("work", "兼职", "income", 8), CategoryEntity("other_income", "其他收入", "income", 9)
+)
 
 fun TransactionEntity.toEntry(): Entry = Entry(id, type, amountCents, LocalDate.ofEpochDay(dateEpochDay).toString(),
     campusCategories.first { it.code == categoryCode }.name, note)

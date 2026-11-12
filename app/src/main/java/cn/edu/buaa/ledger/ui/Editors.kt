@@ -35,20 +35,12 @@ import java.util.UUID
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable fun EntryEditor(original:TransactionEntity?,defaultDate:LocalDate,busy:Boolean,onSave:(TransactionEntity,()->Unit)->Unit,
-    onClose:()->Unit,onDelete:(String)->Unit,raw:String="",parsed:CampusParser.Result?=null,prefill:PaymentPlan?=null,draft:EntryDraft?=null,onDraftChange:(EntryDraft)->Unit={}) {
-    val initial = remember(original, defaultDate, raw, parsed, prefill, draft) {
-        EntryDrafts.create(original, defaultDate, raw, parsed, prefill, draft)
-    }
-    // Saveable IDs survive recreation; a different imported candidate gets an isolated form.
-    var entryId by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.id) }
-    var amount by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.amount) }
-    var date by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.date) }
-    var type by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.type) }
-    var category by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.category) }
-    var note by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.note) }
-    LaunchedEffect(entryId, amount, date, type, category, note) {
-        if (draft != null) onDraftChange(draft.copy(amount=amount, date=date, type=type, category=category, note=note))
-    }
+    onClose:()->Unit,onDelete:(String)->Unit,raw:String="",parsed:CampusParser.Result?=null,prefill:PaymentPlan?=null) {
+    var amount by rememberSaveable { mutableStateOf(original?.amountCents?.money()?:prefill?.amountCents?.money()?:parsed?.amounts?.singleOrNull()?:"") }
+    var date by rememberSaveable { mutableStateOf(original?.let{LocalDate.ofEpochDay(it.dateEpochDay).toString()} ?: if(parsed!=null) parsed.dates.singleOrNull()?:"" else defaultDate.toString()) }
+    var type by rememberSaveable { mutableStateOf(original?.type?:parsed?.type?:"expense") }
+    var category by rememberSaveable { mutableStateOf(original?.categoryCode?:parsed?.category?:if(prefill!=null)"bills" else "food") }
+    var note by rememberSaveable { mutableStateOf(original?.note?:prefill?.name?:raw.take(200)) }
     var amountError by rememberSaveable { mutableStateOf<String?>(null) }
     var dateError by rememberSaveable { mutableStateOf<String?>(null) }
     var keepAdding by rememberSaveable { mutableStateOf(false) }
@@ -56,17 +48,16 @@ import java.util.UUID
     val context=LocalContext.current
     if(deleteConfirm && original!=null) AlertDialog(onDismissRequest={deleteConfirm=false},title={Text("删除这笔账目？")},text={Text("删除后预算、汇总与图表会重新计算。此操作无法撤销。")},
         confirmButton={TextButton({onDelete(original.id);deleteConfirm=false;onClose()}){Text("删除账目",color=MaterialTheme.colorScheme.error)}},dismissButton={TextButton({deleteConfirm=false}){Text("保留")}})
-    EditorFrame(if(original!=null)"编辑账目" else if(parsed!=null || draft!=null)"核对后，记下这一笔" else "记一笔校园日常",
-        if(parsed!=null || draft!=null)"从原文中提取的内容，需要你确认后才保存。" else "金额精确到分，日常开销清清楚楚。",busy,
+    EditorFrame(if(original!=null)"编辑账目" else if(parsed!=null)"核对后，记下这一笔" else "记一笔校园日常",
+        if(parsed!=null)"从原文中提取的内容，需要你确认后才保存。" else "金额精确到分，日常开销清清楚楚。",busy,
         if(keepAdding&&original==null)"保存并继续" else "保存账目",onAction={
             val cents=try {LedgerRules.parseMoney(amount)} catch(e:IllegalArgumentException){amountError=e.message;return@EditorFrame}
             val day=try {LocalDate.parse(date).also {require(it.year in 1900..2100)}} catch(e:Exception){dateError="请选择有效日期，范围为 1900～2100 年";return@EditorFrame}
-            val entity=TransactionEntity(entryId,type,cents,day.toEpochDay(),category,note,
-                initial.source,initial.sourceText,
+            val entity=TransactionEntity(original?.id?:UUID.randomUUID().toString(),type,cents,day.toEpochDay(),category,note,
+                original?.sourceType?:if(parsed!=null)"text" else "manual",original?.sourceText?:raw,
                 createdAt=original?.createdAt?:System.currentTimeMillis())
-            onSave(entity) { if(keepAdding&&original==null&&draft==null){entryId=UUID.randomUUID().toString();amount="";note="";amountError=null} else onClose() }
+            onSave(entity) { if(keepAdding&&original==null){amount="";note="";amountError=null} else onClose() }
         }) {
-        draft?.prompts?.forEach { FieldError(it) }
         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
             listOf("expense" to "支出","income" to "收入").forEach { (value,label) ->
                 LedgerChip(type==value,{type=value;category=campusCategories.first{it.type==value}.code},label={Text(label)},
@@ -110,8 +101,8 @@ import java.util.UUID
         OutlinedTextField(note,{note=it.take(200)},Modifier.fillMaxWidth(),label={Text("备注")},placeholder={Text("例如：学一食堂午餐")},minLines=2,
             supportingText={Text("${note.length}/200")},shape=RoundedCornerShape(14.dp))
         if(original?.sourceText?.isNotBlank()==true && raw.isBlank()) Panel { Subtitle("录入来源 · ${original.sourceType}");Text(original.sourceText,style=MaterialTheme.typography.bodyMedium) }
-        if(original==null && draft==null) Row(Modifier.fillMaxWidth().clickable {keepAdding=!keepAdding},verticalAlignment=Alignment.CenterVertically) { Checkbox(keepAdding,{keepAdding=it});Text("保存后继续记下一笔",style=MaterialTheme.typography.bodyMedium) }
-        else if(original!=null) TextButton({deleteConfirm=true},enabled=!busy,modifier=Modifier.fillMaxWidth()) {Icon(Icons.Outlined.DeleteOutline,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.error);Spacer(Modifier.width(8.dp));Text("删除这笔账目",color=MaterialTheme.colorScheme.error)}
+        if(original==null) Row(Modifier.fillMaxWidth().clickable {keepAdding=!keepAdding},verticalAlignment=Alignment.CenterVertically) { Checkbox(keepAdding,{keepAdding=it});Text("保存后继续记下一笔",style=MaterialTheme.typography.bodyMedium) }
+        else TextButton({deleteConfirm=true},enabled=!busy,modifier=Modifier.fillMaxWidth()) {Icon(Icons.Outlined.DeleteOutline,null,Modifier.size(18.dp),tint=MaterialTheme.colorScheme.error);Spacer(Modifier.width(8.dp));Text("删除这笔账目",color=MaterialTheme.colorScheme.error)}
     }
 }
 

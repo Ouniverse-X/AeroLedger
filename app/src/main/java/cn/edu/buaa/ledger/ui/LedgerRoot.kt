@@ -112,7 +112,6 @@ import java.util.UUID
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal=20.dp,vertical=if(landscape)4.dp else 12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Surface(color=MaterialTheme.colorScheme.primary,shape=RoundedCornerShape(13.dp)) {Icon(Icons.Outlined.FlightTakeoff,null,Modifier.padding(if(landscape)6.dp else 10.dp).size(if(landscape)19.dp else 23.dp),tint=MaterialTheme.colorScheme.onPrimary)}
                     Column(Modifier.weight(1f)) {Text("航小账",style=MaterialTheme.typography.titleLarge);if(!landscape)Text("北航校园生活记账本",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
-                    IconButton({context.startActivity(Intent(context,cn.edu.buaa.ledger.recognition.ReceiptActivity::class.java))},enabled=data.ready){Icon(Icons.Outlined.DocumentScanner,"图片记账")}
                     IconButton({sheet="settings"}){Icon(Icons.Outlined.Tune,"设置与数据管理")}
                 }
             },
