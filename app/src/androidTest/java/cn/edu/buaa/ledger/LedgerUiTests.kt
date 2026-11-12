@@ -39,6 +39,12 @@ class LedgerUiTests {
         compose.onNodeWithText("支出构成").assertExists()
         compose.onNodeWithText("缴费",useUnmergedTree=true).performClick()
         compose.onNodeWithText("系统通知已开启").assertExists()
+        compose.onNodeWithText("账目",useUnmergedTree=true).performClick()
+        compose.onNodeWithText(note).performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
+        compose.onNodeWithText("删除这笔账目").performScrollTo().performClick()
+        compose.onNodeWithText("删除账目").performClick()
+        compose.waitUntil(10000){compose.onAllNodesWithText("编辑账目").fetchSemanticsNodes().isEmpty()}
+        compose.onAllNodesWithText(note).assertCountEquals(0)
       } finally {
         runBlocking {
             val app=ApplicationProvider.getApplicationContext<LedgerApp>();app.ensureInitialized()
