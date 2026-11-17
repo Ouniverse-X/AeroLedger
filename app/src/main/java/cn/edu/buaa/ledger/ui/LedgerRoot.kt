@@ -14,6 +14,7 @@ import androidx.compose.foundation.*
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.*
 import androidx.compose.material3.*
@@ -56,9 +57,11 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             for(position in 0..4) {
                 if(position==2) {
                     Box(Modifier.weight(1f).fillMaxHeight(),contentAlignment=Alignment.TopCenter) {
-                        FilledIconButton(onClick=onRecord,enabled=ready,
-                            modifier=Modifier.size(56.dp).testTag("primary-add").semantics {contentDescription="记账"}) {
-                            Icon(Icons.Outlined.Add,null,Modifier.size(28.dp))
+                        Box(Modifier.size(64.dp).background(Color.White, CircleShape).padding(4.dp)) {
+                            FilledIconButton(onClick=onRecord,enabled=ready,
+                                modifier=Modifier.fillMaxSize().testTag("primary-add").semantics {contentDescription="记账"}) {
+                                Icon(Icons.Outlined.Add,null,Modifier.size(28.dp))
+                            }
                         }
                         Text("记账",Modifier.align(Alignment.BottomCenter).padding(bottom=16.dp),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
                     }
