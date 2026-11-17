@@ -120,11 +120,10 @@ import java.util.UUID
     LedgerTheme(theme) {
         Scaffold(containerColor=MaterialTheme.colorScheme.background,
             topBar={
-                Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal=20.dp,vertical=if(landscape)4.dp else 12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Surface(color=MaterialTheme.colorScheme.primary,shape=RoundedCornerShape(13.dp)) {Icon(Icons.Outlined.FlightTakeoff,null,Modifier.padding(if(landscape)6.dp else 10.dp).size(if(landscape)19.dp else 23.dp),tint=MaterialTheme.colorScheme.onPrimary)}
-                    Text("航小账",modifier=Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
-                    IconButton({context.startActivity(Intent(context,cn.edu.buaa.ledger.recognition.ReceiptActivity::class.java))},enabled=data.ready){Icon(Icons.Outlined.DocumentScanner,"图片记账")}
-                    IconButton({sheet="settings"}){Icon(Icons.Outlined.Tune,"设置与数据管理")}
+                Surface(color=MaterialTheme.colorScheme.primary,contentColor=MaterialTheme.colorScheme.onPrimary) {
+                    Box(Modifier.fillMaxWidth().statusBarsPadding().height(if(landscape)44.dp else 56.dp),contentAlignment=Alignment.Center) {
+                        Text(listOf("总览","账目","统计","缴费")[tab],style=MaterialTheme.typography.titleLarge)
+                    }
                 }
             },
             bottomBar={if(!landscape)NavigationBar(containerColor=MaterialTheme.colorScheme.surface,tonalElevation=0.dp) {
