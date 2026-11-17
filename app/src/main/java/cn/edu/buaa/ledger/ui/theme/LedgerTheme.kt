@@ -50,7 +50,7 @@ enum class ThemeColor(val key: String, val label: String, val start: Color, val 
     ORANGE("orange", "橙", Color(0xFFA84D13), Color(0xFF76330B), Color(0xFFFFBA8F), Color(0xFFFFEADB), Color(0xFF61371F)),
     GREEN("green", "绿", Color(0xFF21734C), Color(0xFF164D35), Color(0xFF86D8AF), Color(0xFFDFF3E8), Color(0xFF234C39)),
     TEAL("teal", "青", Color(0xFF087780), Color(0xFF07505B), Color(0xFF80D5DF), Color(0xFFDDF3F5), Color(0xFF194B52)),
-    BLUE("blue", "深蓝", CampusBlue, Color(0xFF153F86), Color(0xFF96B8FF), Color(0xFFE7EEFC), Color(0xFF203C69)),
+    BLUE("blue", "蓝", CampusBlue, Color(0xFF153F86), Color(0xFF96B8FF), Color(0xFFE7EEFC), Color(0xFF203C69)),
     PURPLE("purple", "紫", Color(0xFF7443AF), Color(0xFF4C2A7B), Color(0xFFD3B5FF), Color(0xFFF0E7FC), Color(0xFF493166));
 
     companion object { fun fromKey(key: String) = entries.firstOrNull { it.key == key } ?: BLUE }
