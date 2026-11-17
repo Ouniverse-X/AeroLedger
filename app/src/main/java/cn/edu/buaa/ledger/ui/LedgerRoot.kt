@@ -8,6 +8,8 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -183,18 +185,31 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     }
                 }
               Box(Modifier.weight(1f).fillMaxHeight()) {
+                AnimatedContent(
+                    targetState=settingsPage,
+                    modifier=Modifier.fillMaxSize(),
+                    transitionSpec={
+                        val direction=if(targetState==null)-1 else 1
+                        (slideInHorizontally(tween(280)) { direction * it / 8 } + fadeIn(tween(220))) togetherWith
+                            (slideOutHorizontally(tween(280)) { -direction * it / 8 } + fadeOut(tween(160))) using
+                            SizeTransform(clip=false)
+                    },
+                    label="settings-navigation"
+                ) { page ->
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
-                    settingsPage=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
-                    settingsPage=="管理权限"->PermissionsScreen(notifications,exact,::notifyPermission,::exactPermission)
-                    settingsPage=="关于"->AboutScreen()
-                    tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{sheet="csv"},{sheet="text"},
+                    page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
+                    page=="管理权限"->PermissionsScreen(notifications,exact,::notifyPermission,::exactPermission)
+                    page=="关于"->AboutScreen()
+                    page=="数据导入与导出"->DataTransferScreen(busy,{importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
+                    tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{sheet="text"},
                         {sheet="budget"},{tab=Destination.PLANS})
                     tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
                     tab==Destination.PLANS->PaymentsScreen(data,notifications,exact,::notifyPermission,::exactPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
                         {sheet="record-plan:${it.id}"},{sheet="plan:new"})
-                    tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{sheet="csv"},{settingsPage="关于"})
+                    tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{settingsPage="关于"})
+                }
                 }
                 if(busy&&sheet==null)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
               }
@@ -217,10 +232,9 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     route=="budget"->BudgetEditor(filter.month,data.budget(filter.month),busy){vm.setBudget(filter.month,it,close)}
                     route.startsWith("plan:")->PaymentEditor(data.plans.firstOrNull{it.id.toString()==route.substringAfter(':')},busy){vm.savePlan(it,close)}
                     route=="review"->ReviewEditor(filter.month,data,busy,{vm.saveReview(it,close)},{code->change(filter.copy(day=null,category=code,type=if(code==null)null else "expense"));tab=Destination.BILLS;close()})
-                    route=="csv"->CsvMenu(busy,{sheet=null;importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
                     route=="import-preview"->preview?.let{ImportPreviewSheet(it,busy){keep->vm.task{val outcome=vm.repository.commitImport(it,keep);vm.importPreview.value=null;sheet="import-result:${outcome.added}:${outcome.skipped}:${outcome.invalid}"}}}
                         ?:EmptyState("预览已经关闭","请重新选择 CSV 文件。")
-                    route.startsWith("import-result:")->ImportResultSheet(route.split(':').drop(1).map{it.toInt()},close){sheet=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))}
+                    route.startsWith("import-result:")->ImportResultSheet(route.split(':').drop(1).map{it.toInt()},close){sheet=null;settingsPage=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))}
                     route=="text"->TextEntrySheet(rawText,{rawText=it}){keyboard?.hide();sheet="parsed"}
                 }
             }
@@ -228,9 +242,8 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
 }
 
-@Composable private fun CsvMenu(busy:Boolean,onImport:()->Unit,onAll:()->Unit,onFiltered:()->Unit) {
-    Column(Modifier.fillMaxWidth().padding(20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Text("导入与导出",style=MaterialTheme.typography.headlineSmall)
+@Composable private fun DataTransferScreen(busy:Boolean,onImport:()->Unit,onAll:()->Unit,onFiltered:()->Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
         Subtitle("通过系统文件选择器导入或导出 UTF-8 CSV。只包含账目，预算、计划与回顾不随文件转移。")
         PrimaryButton("选择文件并预览导入",!busy,onClick=onImport)
         OutlinedButton(onAll,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Icon(Icons.Outlined.FileDownload,null);Spacer(Modifier.width(8.dp));Text("导出全部账目")}
