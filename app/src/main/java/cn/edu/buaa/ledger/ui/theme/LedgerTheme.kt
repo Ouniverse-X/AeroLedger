@@ -61,16 +61,14 @@ val LocalThemeColor = compositionLocalOf { ThemeColor.BLUE }
 @Composable fun LedgerTheme(mode: String = "system", colorKey: String = "blue", content: @Composable () -> Unit) {
     val dark = mode == "dark" || mode == "system" && isSystemInDarkTheme()
     val accent = ThemeColor.fromKey(colorKey)
-    // Use the saturated/darker tone on dark surfaces and the lighter tone in light mode.
-    // This reverses the previous contrast direction while keeping text readable.
+    // Both display modes use the same saturated theme color.
     val colors = if (dark)
         Dark.copy(primary=accent.start, onPrimary=Color.White,
             primaryContainer=accent.darkContainer, onPrimaryContainer=accent.container)
     else
-        Light.copy(primary=accent.darkAccent, onPrimary=accent.end,
+        Light.copy(primary=accent.start, onPrimary=Color.White,
             primaryContainer=accent.container, onPrimaryContainer=accent.end)
     CompositionLocalProvider(LocalThemeColor provides accent) {
         MaterialTheme(colorScheme=colors, typography=LedgerTypography, content=content)
     }
 }
-
