@@ -77,7 +77,7 @@ class ReceiptParser {
             .joinToString(" ") { it.text }.take(2000)
         val classified = CampusParser.parse(relevant, LocalDate.of(2000, 1, 1))
         val category = when {
-            type == "income" -> "other_income"
+            type == "income" -> if (classified.type == "income") classified.category else "other_income"
             Regex("餐饮|外卖|咖啡|午餐|晚餐|早餐|牛肉饭|汉堡|奶茶|肯德基|吉野家").containsMatchIn(relevant) -> "food"
             Regex("洗衣|水费|电费|话费|网费").containsMatchIn(relevant) -> "bills"
             Regex("日用百货|耳机|耳套|键盘|电脑|沐浴|旗舰店").containsMatchIn(relevant) -> "shopping"
@@ -91,8 +91,21 @@ class ReceiptParser {
             .take(12).joinToString("\n") { it.text }.take(1200)
         val note = rows.firstOrNull { Regex("^(商户|商家|商品说明|商品名称)[：:]").containsMatchIn(it.text) }
             ?.text?.substringAfter(':')?.substringAfter('：')?.take(100).orEmpty()
+        val time = paymentTime(rows, if(unpaid) "" else date)
         return EntryDraft(amount = amounts.singleOrNull().orEmpty(), date = if (unpaid) "" else date, type = type, category = category,
-            note = note, source = "image", sourceText = evidence, prompts = warnings)
+            note = note, transactionTime = time,
+            transactionZone = if(time.isEmpty()) "" else java.time.ZoneId.systemDefault().id, source = "image", sourceText = evidence, prompts = warnings)
+    }
+
+    private fun paymentTime(rows: List<ReceiptRow>, date: String): String {
+        if (date.isEmpty()) return ""
+        val times = rows.indices.filter { Regex("支付时间|付款时间|收款时间|交易时间").containsMatchIn(rows[it].text) }
+            .flatMap { i ->
+                val text = rows[i].text + if (i+1 < rows.size && !Regex("时间|日期").containsMatchIn(rows[i+1].text)) " " + rows[i+1].text else ""
+                Regex("(?<![0-9])([01][0-9]|2[0-3]):([0-5][0-9])(?::[0-5][0-9])?(?![0-9])")
+                    .findAll(text).map { it.groupValues[1] + ":" + it.groupValues[2] }.toList()
+            }.distinct()
+        return times.singleOrNull().orEmpty()
     }
 
     private fun money(value: String): String? = runCatching {

@@ -45,9 +45,13 @@ import java.util.UUID
     var date by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.date) }
     var type by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.type) }
     var category by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.category) }
+    var transactionTime by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.transactionTime) }
+    var transactionZone by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.transactionZone) }
+    var timeError by rememberSaveable { mutableStateOf<String?>(null) }
+    var customCategory by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.customCategory) }
     var note by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.note) }
-    LaunchedEffect(entryId, amount, date, type, category, note) {
-        if (draft != null) onDraftChange(draft.copy(amount=amount, date=date, type=type, category=category, note=note))
+    LaunchedEffect(entryId, amount, date, type, category, note, customCategory, transactionTime, transactionZone) {
+        if (draft != null) onDraftChange(draft.copy(amount=amount, date=date, type=type, category=category, note=note, customCategory=if(category in listOf("other", "other_income")) customCategory.trim() else "", transactionTime=transactionTime, transactionZone=transactionZone))
     }
     var amountError by rememberSaveable { mutableStateOf<String?>(null) }
     var dateError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -61,10 +65,15 @@ import java.util.UUID
         if(keepAdding&&original==null)"保存并继续" else "保存账目",onAction={
             val cents=try {LedgerRules.parseMoney(amount)} catch(e:IllegalArgumentException){amountError=e.message;return@EditorFrame}
             val day=try {LocalDate.parse(date).also {require(it.year in 1900..2100)}} catch(e:Exception){dateError="请选择有效日期，范围为 1900～2100 年";return@EditorFrame}
+            if(transactionTime.isNotEmpty() && !Regex("(?:[01][0-9]|2[0-3]):[0-5][0-9]").matches(transactionTime)) {
+                timeError="请填写有效的 HH:mm 时间";return@EditorFrame
+            }
             val entity=TransactionEntity(entryId,type,cents,day.toEpochDay(),category,note,
                 initial.source,initial.sourceText,
-                createdAt=original?.createdAt?:System.currentTimeMillis())
-            onSave(entity) { if(keepAdding&&original==null&&draft==null){entryId=UUID.randomUUID().toString();amount="";note="";amountError=null} else onClose() }
+                createdAt=original?.createdAt?:System.currentTimeMillis(),
+                customCategory=if(category in listOf("other", "other_income")) customCategory.trim() else "",
+                transactionTime=transactionTime,transactionZone=if(transactionTime.isEmpty()) "" else transactionZone)
+            onSave(entity) { if(keepAdding&&original==null&&draft==null){entryId=UUID.randomUUID().toString();amount="";note="";amountError=null;transactionTime="";transactionZone="";timeError=null} else onClose() }
         }) {
         draft?.prompts?.forEach { FieldError(it) }
         Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {
@@ -100,12 +109,30 @@ import java.util.UUID
                 repeat(3-row.size){Spacer(Modifier.weight(1f))}
             } }
         }
+        if(category in listOf("other", "other_income")) OutlinedTextField(customCategory,{customCategory=it.take(20)},
+            Modifier.fillMaxWidth(),label={Text("具体分类（可选）")},placeholder={Text("例如：社团活动")},
+            supportingText={Text("不填写则为其他，统计统一归入其他")},singleLine=true,shape=RoundedCornerShape(14.dp))
+        Text("这笔账发生在",style=MaterialTheme.typography.titleMedium)
         OutlinedTextField(date,{date=it.take(10);dateError=null},Modifier.fillMaxWidth(),label={Text("日期 YYYY-MM-DD")},singleLine=true,
             placeholder={Text(if(parsed!=null)"原文日期不明确，请选择" else "选择日期")},isError=dateError!=null,
             supportingText={if(dateError!=null)Text(dateError!!)},shape=RoundedCornerShape(14.dp),trailingIcon={IconButton({
                 val current=runCatching{LocalDate.parse(date)}.getOrDefault(defaultDate)
                 DatePickerDialog(context,{_,y,m,d->date=LocalDate.of(y,m+1,d).toString();dateError=null},current.year,current.monthValue-1,current.dayOfMonth).show()
             }){Icon(Icons.Outlined.CalendarToday,"选择日期")}})
+        if(transactionTime.isEmpty()) TextButton({
+            transactionTime=LocalTime.now().withSecond(0).withNano(0).toString()
+            transactionZone=ZoneId.systemDefault().id
+        }) {Text("添加具体时间（可选）")}
+        else {
+            OutlinedTextField(transactionTime,{transactionTime=it.take(5);timeError=null},Modifier.fillMaxWidth(),
+                label={Text("具体时间 HH:mm")},singleLine=true,isError=timeError!=null,
+                supportingText={Text(timeError ?: "实际交易发生时间 · $transactionZone")},shape=RoundedCornerShape(14.dp),
+                trailingIcon={IconButton({
+                    val current=runCatching {LocalTime.parse(transactionTime)}.getOrDefault(LocalTime.now())
+                    TimePickerDialog(context,{_,h,m->transactionTime=String.format(java.util.Locale.ROOT,"%02d:%02d",h,m);timeError=null},current.hour,current.minute,true).show()
+                }) {Icon(Icons.Outlined.Schedule,"选择交易时间")}})
+            TextButton({transactionTime="";transactionZone="";timeError=null}) {Text("仅记录日期")}
+        }
         if(parsed!=null && parsed.dates.size>1) FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) { parsed.dates.forEach { candidate -> LedgerChip(date==candidate,{date=candidate;dateError=null},label={Text(candidate)}) } }
         OutlinedTextField(note,{note=it.take(200)},Modifier.fillMaxWidth(),label={Text("备注")},placeholder={Text("例如：学一食堂午餐")},minLines=2,
             supportingText={Text("${note.length}/200")},shape=RoundedCornerShape(14.dp))

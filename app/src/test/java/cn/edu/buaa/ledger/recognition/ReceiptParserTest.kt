@@ -37,10 +37,10 @@ class ReceiptParserTest {
     }
 
     @Test fun categoriesRemainCompatibleWithPersistedRecords() {
-        assertEquals(10, CategoryCatalog.ALL.size)
-        assertEquals(10, CategoryCatalog.ALL.map { it.code }.distinct().size)
-        assertArrayEquals(arrayOf("餐饮", "购物", "交通", "学习", "生活缴费", "其他支出"), LedgerRules.EXPENSE_CATEGORIES)
-        assertArrayEquals(arrayOf("生活费", "奖助学金", "兼职", "其他收入"), LedgerRules.INCOME_CATEGORIES)
+        assertEquals(13, CategoryCatalog.ALL.size)
+        assertEquals(13, CategoryCatalog.ALL.map { it.code }.distinct().size)
+        assertArrayEquals(arrayOf("餐饮", "购物", "交通", "学习", "生活", "医疗", "娱乐", "其他"), LedgerRules.EXPENSE_CATEGORIES)
+        assertArrayEquals(arrayOf("生活费", "奖助学金", "兼职", "红包", "其他"), LedgerRules.INCOME_CATEGORIES)
     }
 
     @Test fun originalIdentityAndSourceSurvivePrefill() {
@@ -80,4 +80,19 @@ class ReceiptParserTest {
         assertEquals("", parse("实付 ￥25.00", "支付时间", "未知", "签收时间", "2026-11-13").date)
     }
 
+    @Test fun paymentTimeIsOptionalAndBelongsToPaymentField() {
+        val timed=parse("实付 ￥12.50", "付款时间 2026-11-17 09:35:20")
+        assertEquals("09:35",timed.transactionTime)
+        assertEquals(java.time.ZoneId.systemDefault().id,timed.transactionZone)
+        assertEquals("",parse("实付 ￥12.50", "2026-11-17", "下单时间 08:30").transactionTime)
+        assertEquals("",parse("实付 ￥12.50", "付款时间 09:30").transactionTime)
+    }
+    @Test fun existingOtherNameAndTimeSurvivePrefill() {
+        val original=TransactionEntity("existing-other","expense",1250,20000,"other","note",
+            customCategory="社团活动",transactionTime="10:35",transactionZone="Asia/Shanghai")
+        val draft=EntryDrafts.create(original,LocalDate.now())
+        assertEquals("社团活动",draft.customCategory)
+        assertEquals("10:35",draft.transactionTime)
+        assertEquals("Asia/Shanghai",draft.transactionZone)
+    }
 }

@@ -26,6 +26,7 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
 
     suspend fun initialize() {
         dao.seedCategories(campusCategories)
+        dao.updateCategories(campusCategories)
         migratePrototype()
     }
 
@@ -62,6 +63,7 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
         val rows = parsed.drop(1).mapIndexed { index, fields ->
             val ordinal = index + 2
             try {
+                require(fields.size == parsed.first().size) { "列数与表头不一致" }
                 val entry = CsvCodec.decodeRow(fields).toEntity("csv", filename)
                 val state = when {
                     ordinal in receipts || entry.id in ids -> "duplicate"
@@ -145,7 +147,7 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
     companion object {
         fun create(context: Context): LedgerRepository {
             val app = context.applicationContext
-            val db = Room.databaseBuilder(app, LedgerDatabase::class.java, "campus-ledger-v2.db").build()
+            val db = Room.databaseBuilder(app, LedgerDatabase::class.java, "campus-ledger-v2.db").addMigrations(LedgerDatabase.MIGRATION_1_2, LedgerDatabase.MIGRATION_2_3).build()
             return LedgerRepository(app, db)
         }
     }

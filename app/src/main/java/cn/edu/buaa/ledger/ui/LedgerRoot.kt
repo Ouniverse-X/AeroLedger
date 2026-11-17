@@ -54,6 +54,17 @@ import java.util.UUID
     var tab by rememberSaveable {mutableIntStateOf(0)}
     var filter by remember {mutableStateOf(vm.filter)}
     fun change(next:FilterSpec) {filter=next;vm.filter=next}
+    val today = rememberDeviceDate()
+    var lastToday by remember { mutableStateOf(today) }
+    LaunchedEffect(today, tab) {
+        if (today != lastToday && filter.month == YearMonth.from(lastToday)) {
+            change(filter.copy(month=YearMonth.from(today),day=null))
+        }
+        lastToday = today
+        if (tab == 0 && filter.month > YearMonth.from(today)) {
+            change(filter.copy(month=EntryDates.homeMonth(filter.month,today),day=null))
+        }
+    }
     var sheet by rememberSaveable {mutableStateOf<String?>(null)}
     var rawText by rememberSaveable {mutableStateOf("")}
     var exportAll by rememberSaveable {mutableStateOf(true)}
@@ -176,7 +187,7 @@ import java.util.UUID
                         val id=route.substringAfter(':',"")
                         val original=data.entries.firstOrNull{it.id==id}
                         val plan=if(route.startsWith("record-plan:"))data.plans.firstOrNull{it.id.toString()==id} else null
-                        EntryEditor(original,filter.day?:if(filter.month==YearMonth.now())LocalDate.now() else filter.month.atDay(1),busy,
+                        EntryEditor(original,EntryDates.defaultDate(filter,today),busy,
                             {entry,done->vm.saveEntry(entry){val date=LocalDate.ofEpochDay(entry.dateEpochDay);change(filter.copy(month=YearMonth.from(date),day=if(filter.day!=null)date else null,type=null,category=null));done()}},close,vm::deleteEntry,
                             raw=if(route=="parsed")rawText else "",parsed=if(route=="parsed")CampusParser.parse(rawText,LocalDate.now()) else null,prefill=plan)
                     }
@@ -202,7 +213,7 @@ import java.util.UUID
         PrimaryButton("选择文件并预览导入",!busy,onClick=onImport)
         OutlinedButton(onAll,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Icon(Icons.Outlined.FileDownload,null);Spacer(Modifier.width(8.dp));Text("导出全部账目")}
         OutlinedButton(onFiltered,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Text("导出当前筛选账目")}
-        Panel {Text("V1 文件格式",style=MaterialTheme.typography.titleMedium);Text("id,type,amount,date,category,note",style=MaterialTheme.typography.bodyMedium);Subtitle("type：expense / income\namount：元，正数，最多两位小数\ndate：YYYY-MM-DD\ncategory：应用预设类别\nid：1～80 位字母、数字、短横线或下划线\n备注最多 200 字，最多 10000 条、2 MB。")}
+        Panel {Text("CSV 文件格式",style=MaterialTheme.typography.titleMedium);Text("id,type,amount,date,category,note,customCategory,transactionTime,transactionZone",style=MaterialTheme.typography.bodyMedium);Subtitle("type：expense / income\namount：元，正数，最多两位小数\ndate：YYYY-MM-DD\ncategory：应用预设类别\nid：1～80 位字母、数字、短横线或下划线\n兼容旧版六列和七列文件；transactionTime 为可选 HH:mm，transactionZone 为发生时的时区。\ncustomCategory 为其他的自填名称，最多 20 字。\n备注最多 200 字，最多 10000 条、2 MB。")}
         Spacer(Modifier.height(12.dp))
     }
 }
@@ -218,7 +229,7 @@ import java.util.UUID
         Subtitle("确定重复会跳过且不覆盖。以下展示前 100 条，最终按全部 ${preview.rows.size} 条执行。")
         preview.rows.take(100).forEach{row->Panel{
             Tag("第 ${row.ordinal} 条 · ${when(row.state){"valid"->"可导入";"duplicate"->"重复";"suspicious"->"需核对";else->"无效"}}",if(row.state=="invalid")MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-            row.entry?.let{e->Text("${categoryName(e.categoryCode)} · ${if(e.type=="income")"收入" else "支出"} ¥${e.amountCents.money()}",style=MaterialTheme.typography.titleMedium);Subtitle("${LocalDate.ofEpochDay(e.dateEpochDay)} · ${e.note}")}
+            row.entry?.let{e->Text("${e.customCategory.ifBlank { categoryName(e.categoryCode) }} · ${if(e.type=="income")"收入" else "支出"} ¥${e.amountCents.money()}",style=MaterialTheme.typography.titleMedium);Subtitle("${LocalDate.ofEpochDay(e.dateEpochDay)} · ${e.note}")}
             if(row.raw.isNotBlank())Subtitle(row.raw.take(220))
             Subtitle(row.message)
         }}

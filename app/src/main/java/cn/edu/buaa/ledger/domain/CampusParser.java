@@ -37,7 +37,7 @@ public final class CampusParser {
             catch (IllegalArgumentException ignored) { }
         }
         String[][] rules = {{"奖学金|助学金","scholarship","income"},{"生活费|家人转入","allowance","income"},
-            {"兼职|劳务|助教工资","work","income"},{"电费|水费|网费|宿舍缴费","bills","expense"},
+            {"兼职|劳务|助教工资","work","income"},{"红包","gift","income"},{"医院|挂号|买药|看病","medical","expense"},{"电影|游戏|演出|娱乐","entertainment","expense"},{"电费|水费|网费|宿舍缴费","bills","expense"},
             {"食堂|午餐|晚餐|早餐|合一楼|咖啡|奶茶","food","expense"},{"地铁|公交|通勤|打车","transport","expense"},
             {"打印|教材|课程资料|书本","study","expense"},{"日用品|购物|文具","shopping","expense"}};
         for (String[] rule : rules) {

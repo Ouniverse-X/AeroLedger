@@ -62,6 +62,20 @@ public final class CoreTests {
         check(cn.edu.buaa.ledger.domain.CampusParser.parse("2026-02-30 餐费12元", today).dates.isEmpty(), "invalid text date not guessed");
         check(cn.edu.buaa.ledger.domain.CampusParser.parse("午餐-12元", today).amounts.isEmpty(), "negative text money not silently made positive");
         rejects(() -> LedgerRules.validate(new Entry("old", "expense", 1, "1800-01-01", "餐饮", "")), "out of range import date");
+        Entry custom = new Entry("custom", "expense", 100, "2026-11-17", "其他", "", "社团,活动");
+        LedgerRules.validate(custom);
+        check(CsvCodec.decodeRow(CsvCodec.parse(CsvCodec.encode(List.of(custom))).get(1)).fingerprint().equals(custom.fingerprint()), "custom category CSV roundtrip");
+        check(CsvCodec.decodeRow(List.of("legacy", "expense", "1", "2026-11-17", "生活缴费", "")).category.equals("生活"), "legacy life category");
+        check(CsvCodec.decodeRow(List.of("legacy", "income", "1", "2026-11-17", "其他收入", "")).category.equals("其他"), "legacy income category");
+        rejects(() -> LedgerRules.validate(new Entry("bad", "expense", 1, "2026-11-17", "餐饮", "", "custom")), "custom category only on other");
+        check(cn.edu.buaa.ledger.domain.CategoryCatalog.names("expense").length == 8, "eight expense categories");
+        check(cn.edu.buaa.ledger.domain.CategoryCatalog.names("income").length == 5, "five income categories");
+        Entry timed = new Entry("timed", "expense", 100, "2026-11-17", "其他", "", "活动", "23:59", "Asia/Shanghai");
+        LedgerRules.validate(timed);
+        check(CsvCodec.decodeRow(CsvCodec.parse(CsvCodec.encode(List.of(timed))).get(1)).fingerprint().equals(timed.fingerprint()), "time and zone CSV roundtrip");
+        check(CsvCodec.decodeRow(List.of("old", "expense", "1", "2026-11-17", "其他", "")).transactionTime.isEmpty(), "legacy CSV has unknown time");
+        rejects(() -> LedgerRules.validate(new Entry("bad", "expense", 1, "2026-11-17", "其他", "", "", "24:00", "Asia/Shanghai")), "invalid transaction hour");
+        rejects(() -> LedgerRules.validate(new Entry("bad", "expense", 1, "2026-11-17", "其他", "", "", "09:00", "invalid")), "invalid transaction zone");
         System.out.println("PASS: " + assertions + " core assertions");
     }
 }

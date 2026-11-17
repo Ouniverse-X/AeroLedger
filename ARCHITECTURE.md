@@ -31,7 +31,9 @@ app/src/main/java/cn/edu/buaa/ledger/
 
 Room 数据库为 `campus-ledger-v2.db`，结构快照位于 `app/schemas/`。主要表为 `categories`、`transactions`、`monthly_budgets`、`payment_plans`、`monthly_reviews`、`metadata`、`import_rows`。
 
-金额使用整数分保存，输入由 BigDecimal 精确转换；收支类型独立保存。账目日期采用自然日 epochDay；缴费到期时间采用绝对毫秒时间，同时保留时区。DAO 返回 Flow，账目变更后刷新页面统计。
+Room 当前版本为3，显式迁移1→2（其他分类名称）→3（可选交易时间和发生时区）。保留旧分类代码并更新显示名称；新增分类由初始化过程补齐。“其他”的具体名称跟随单笔账目，统计仍归入其他。
+
+金额使用整数分保存，输入由 BigDecimal 精确转换；收支类型独立保存。账目日期采用自然日 epochDay；可选交易时间用HH:mm保存，并保存发生时区，空字符串表示未知；同日优先按明确交易时间降序，无时间账目再按创建时间排序。缴费到期时间采用绝对毫秒时间，同时保留时区。DAO 返回 Flow，账目变更后刷新页面统计。
 
 FilterSpec 统一明细、分类图与筛选导出的条件。预算固定使用指定月全部支出，收入不抵扣预算。趋势图显示选定月及此前五个月，并使用同样的类型与类别筛选。消费回顾保存正文和生成依据，统计变化后保留编辑稿并提示重新生成。
 

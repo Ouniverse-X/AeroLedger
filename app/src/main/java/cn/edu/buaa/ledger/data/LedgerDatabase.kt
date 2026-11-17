@@ -15,7 +15,10 @@ data class TransactionEntity(
     @PrimaryKey val id: String, val type: String, val amountCents: Long,
     val dateEpochDay: Long, val categoryCode: String, val note: String,
     val sourceType: String = "manual", val sourceText: String = "",
-    val createdAt: Long = System.currentTimeMillis(), val updatedAt: Long = System.currentTimeMillis()
+    val createdAt: Long = System.currentTimeMillis(), val updatedAt: Long = System.currentTimeMillis(),
+    @ColumnInfo(defaultValue = "''") val customCategory: String = "",
+    @ColumnInfo(defaultValue = "''") val transactionTime: String = "",
+    @ColumnInfo(defaultValue = "''") val transactionZone: String = ""
 )
 
 @Entity(tableName = "monthly_budgets")
@@ -43,12 +46,12 @@ data class ImportReceipt(val fileHash: String, val ordinal: Int, val transaction
 
 @Dao
 interface LedgerDao {
-    @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, createdAt DESC, id DESC")
+    @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, transactionTime DESC, createdAt DESC, id DESC")
     fun observeTransactions(): Flow<List<TransactionEntity>>
     @Query("SELECT * FROM monthly_budgets") fun observeBudgets(): Flow<List<BudgetEntity>>
     @Query("SELECT * FROM payment_plans ORDER BY dueAt") fun observePlans(): Flow<List<PaymentPlan>>
     @Query("SELECT * FROM monthly_reviews") fun observeReviews(): Flow<List<ReviewEntity>>
-    @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, createdAt DESC") suspend fun transactions(): List<TransactionEntity>
+    @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, transactionTime DESC, createdAt DESC") suspend fun transactions(): List<TransactionEntity>
     @Query("SELECT * FROM transactions WHERE id=:id") suspend fun transaction(id: String): TransactionEntity?
     @Upsert suspend fun saveTransaction(item: TransactionEntity)
     @Query("DELETE FROM transactions WHERE id=:id") suspend fun deleteTransaction(id: String)
@@ -63,20 +66,36 @@ interface LedgerDao {
     @Query("SELECT * FROM metadata WHERE `key`=:key") suspend fun meta(key: String): MetaEntity?
     @Upsert suspend fun setMeta(item: MetaEntity)
     @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun seedCategories(items: List<CategoryEntity>)
+    @Update suspend fun updateCategories(items: List<CategoryEntity>)
     @Query("SELECT * FROM import_rows WHERE fileHash=:hash") suspend fun receipts(hash: String): List<ImportReceipt>
     @Insert suspend fun saveReceipt(item: ImportReceipt)
 }
 
 @Database(entities = [CategoryEntity::class, TransactionEntity::class, BudgetEntity::class, PaymentPlan::class,
-    ReviewEntity::class, MetaEntity::class, ImportReceipt::class], version = 1, exportSchema = true)
-abstract class LedgerDatabase : RoomDatabase() { abstract fun ledger(): LedgerDao }
+    ReviewEntity::class, MetaEntity::class, ImportReceipt::class], version = 3, exportSchema = true)
+abstract class LedgerDatabase : RoomDatabase() {
+    abstract fun ledger(): LedgerDao
+    companion object {
+        val MIGRATION_2_3 = object : androidx.room.migration.Migration(2, 3) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN transactionTime TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE transactions ADD COLUMN transactionZone TEXT NOT NULL DEFAULT ''")
+            }
+        }
+        val MIGRATION_1_2 = object : androidx.room.migration.Migration(1, 2) {
+            override fun migrate(db: androidx.sqlite.db.SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE transactions ADD COLUMN customCategory TEXT NOT NULL DEFAULT ''")
+            }
+        }
+    }
+}
 
 val campusCategories = cn.edu.buaa.ledger.domain.CategoryCatalog.ALL.mapIndexed { index, category ->
     CategoryEntity(category.code, category.name, category.type, index)
 }
 
 fun TransactionEntity.toEntry(): Entry = Entry(id, type, amountCents, LocalDate.ofEpochDay(dateEpochDay).toString(),
-    campusCategories.first { it.code == categoryCode }.name, note)
+    campusCategories.first { it.code == categoryCode }.name, note, customCategory, transactionTime, transactionZone)
 fun Entry.toEntity(source: String = "csv", raw: String = ""): TransactionEntity = TransactionEntity(
-    id, type, cents, LocalDate.parse(date).toEpochDay(), campusCategories.first { it.name == category && it.type == type }.code,
-    note, source, raw)
+    id, type, cents, LocalDate.parse(date).toEpochDay(), campusCategories.first { it.name == cn.edu.buaa.ledger.domain.CategoryCatalog.normalize(category, type) && it.type == type }.code,
+    note, source, raw, customCategory = customCategory, transactionTime = transactionTime, transactionZone = transactionZone)

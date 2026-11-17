@@ -21,15 +21,28 @@ import cn.edu.buaa.ledger.data.*
 import cn.edu.buaa.ledger.domain.money
 import java.time.LocalDate
 
+/** Ordered cool/warm ramps; other is the soft final stop in each ramp. */
 fun categoryColor(code: String): Color = when(code) {
-    "food" -> Color(0xFF2257B8); "shopping" -> Color(0xFF0F766E); "transport" -> Color(0xFF8B5CF6)
-    "study" -> Color(0xFFB45309); "bills" -> Color(0xFFC24168); "other" -> Color(0xFF64748B)
-    else -> Color(0xFF0F766E)
+    "food" -> Color(0xFF2454A6)
+    "shopping" -> Color(0xFF296BB2)
+    "transport" -> Color(0xFF2C80B9)
+    "study" -> Color(0xFF3295BE)
+    "bills" -> Color(0xFF46A8C3)
+    "medical" -> Color(0xFF65BACB)
+    "entertainment" -> Color(0xFF8ACCD5)
+    "other" -> Color(0xFFB6DFE2)
+    "allowance" -> Color(0xFFB94E38)
+    "scholarship" -> Color(0xFFCF713D)
+    "work" -> Color(0xFFE0964F)
+    "gift" -> Color(0xFFEABE7A)
+    "other_income" -> Color(0xFFF2DDB2)
+    else -> Color(0xFFB6DFE2)
 }
 fun categoryIcon(code: String): ImageVector = when(code) {
     "food" -> Icons.Outlined.Restaurant; "shopping" -> Icons.Outlined.ShoppingBag
     "transport" -> Icons.Outlined.DirectionsTransit; "study" -> Icons.Outlined.MenuBook
-    "bills" -> Icons.Outlined.Bolt; "allowance" -> Icons.Outlined.AccountBalanceWallet
+    "medical" -> Icons.Outlined.LocalHospital; "entertainment" -> Icons.Outlined.SportsEsports
+    "gift" -> Icons.Outlined.CardGiftcard; "bills" -> Icons.Outlined.Home; "allowance" -> Icons.Outlined.AccountBalanceWallet
     "scholarship" -> Icons.Outlined.School; "work" -> Icons.Outlined.WorkOutline
     else -> Icons.Outlined.MoreHoriz
 }
@@ -69,8 +82,11 @@ private fun fontFeatureSettingsStyle() = androidx.compose.ui.text.TextStyle(font
 
 @Composable fun CategoryAvatar(code: String, modifier: Modifier = Modifier, selected: Boolean = false) {
     val dark = MaterialTheme.colorScheme.background.luminanceValue() < .2f
-    val color = categoryColor(code).let { if (dark) androidx.compose.ui.graphics.lerp(it, Color.White, .38f) else it }
-    Box(modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(color.copy(alpha = if(selected) .23f else .10f)), contentAlignment = Alignment.Center) {
+    val base = categoryColor(code)
+    // Pale ramp stops remain pale in charts/backgrounds; icon ink needs contrast on light surfaces.
+    val color = if (dark) androidx.compose.ui.graphics.lerp(base, Color.White, .25f)
+        else androidx.compose.ui.graphics.lerp(base, Color.Black, .35f)
+    Box(modifier.size(44.dp).clip(RoundedCornerShape(14.dp)).background(base.copy(alpha = if(selected) .30f else .18f)), contentAlignment = Alignment.Center) {
         Icon(categoryIcon(code), categoryName(code), Modifier.size(23.dp), tint = color)
     }
 }
@@ -81,9 +97,10 @@ private fun Color.luminanceValue() = red * .2126f + green * .7152f + blue * .072
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         CategoryAvatar(item.categoryCode)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(categoryName(item.categoryCode), style = MaterialTheme.typography.titleMedium)
+            Text(item.customCategory.ifBlank { categoryName(item.categoryCode) }, style = MaterialTheme.typography.titleMedium)
             Text(item.note.ifBlank { LocalDate.ofEpochDay(item.dateEpochDay).toString() }, maxLines = 2,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if(item.transactionTime.isNotEmpty()) Subtitle("${LocalDate.ofEpochDay(item.dateEpochDay)} ${item.transactionTime} · ${item.transactionZone}")
             if(item.sourceType == "text") Text("文本辅助录入", style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
         }
         Column(horizontalAlignment = Alignment.End) {
