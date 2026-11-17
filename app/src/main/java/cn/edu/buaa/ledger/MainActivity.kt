@@ -28,7 +28,7 @@ class MainActivity : ComponentActivity() {
         if(savedInstanceState==null && intent.hasExtra("open_plan")) openedPlan=intent.getLongExtra("open_plan",-1)
         setContent { LedgerRoot(model,openedPlan,{openedPlan=null}, {dark->
             WindowCompat.getInsetsController(window,window.decorView).apply {
-                isAppearanceLightStatusBars=!dark;isAppearanceLightNavigationBars=!dark
+                isAppearanceLightStatusBars=dark;isAppearanceLightNavigationBars=!dark
             }
         }) }
     }

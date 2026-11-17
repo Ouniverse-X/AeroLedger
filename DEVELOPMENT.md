@@ -126,3 +126,10 @@ adb exec-out run-as cn.edu.buaa.ledger cat files/corpus/ocr-results.json
 `CategoryMigrationTests`从真实版本1和2表结构迁移至当前版本并由Room验证；`EntryDatesTest`覆盖当月、历史补账及跨年月份；`EntryFlowUiTests`覆盖首页月份边界及自填分类、时间开关与保存。项目原有Espresso版本在API37模拟器上因InputManager.getInstance移除无法初始化；界面测试应使用API35兼容设备，不将测试包编译成功计为界面验收通过。
 
 本轮本机回归结果：JDK17、Gradle8.9、SDK35/Build-Tools35.0.0；核心Java断言58项通过；JVM测试22项通过；assembleDebug、assembleDebugAndroidTest、lintDebug全部成功，lint报告No issues found。API37专用模拟器执行CategoryMigrationTests（2项）、LedgerDeviceTests（5项）与ReceiptDeviceTests（4项），共11项通过。EntryFlowUiTests在API37因测试框架初始化失败，未执行应用断言；需要兼容的API35设备补验，不计为通过。未安装新的系统镜像，未修改全局JDK或升级依赖。
+
+
+### Concise interface pass
+
+分支 `codex/concise-interface`：删除四个主页面的口号区及表单、设置中的修饰性标题，使用直接的功能名称；全局标题调整为15～18sp，金额显示保持独立字号。空白副标题和空状态说明不再占位。必要的数据、权限和操作后果说明暂时保留，等待后续文案审定。本轮未调整筛选、记账、数据库及缴费业务规则。
+
+本地验证：核心Java断言58项、JVM测试22项通过；assembleDebug、assembleDebugAndroidTest及lintDebug通过，lint报告No issues found。API35专用模拟器首轮设备测试因系统崩溃中断；冷启动重跑输出EntryFlowUiTests的两个通过标记，随后系统服务和截图响应停滞，未获得完整instrumentation总结，因此不计为完整设备回归通过。账目及图片界面回归仍需在稳定设备补验。未安装或升级环境依赖。
