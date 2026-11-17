@@ -14,5 +14,7 @@ data class EntryDraft(
     val source: String = "manual",
     val sourceText: String = "",
     val prompts: List<String> = emptyList(),
-    val customCategory: String = ""
+    val customCategory: String = "",
+    val transactionTime: String = "",
+    val transactionZone: String = ""
 ) : Serializable

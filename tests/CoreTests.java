@@ -70,6 +70,12 @@ public final class CoreTests {
         rejects(() -> LedgerRules.validate(new Entry("bad", "expense", 1, "2026-11-17", "餐饮", "", "custom")), "custom category only on other");
         check(cn.edu.buaa.ledger.domain.CategoryCatalog.names("expense").length == 8, "eight expense categories");
         check(cn.edu.buaa.ledger.domain.CategoryCatalog.names("income").length == 5, "five income categories");
+        Entry timed = new Entry("timed", "expense", 100, "2026-11-17", "其他", "", "活动", "23:59", "Asia/Shanghai");
+        LedgerRules.validate(timed);
+        check(CsvCodec.decodeRow(CsvCodec.parse(CsvCodec.encode(List.of(timed))).get(1)).fingerprint().equals(timed.fingerprint()), "time and zone CSV roundtrip");
+        check(CsvCodec.decodeRow(List.of("old", "expense", "1", "2026-11-17", "其他", "")).transactionTime.isEmpty(), "legacy CSV has unknown time");
+        rejects(() -> LedgerRules.validate(new Entry("bad", "expense", 1, "2026-11-17", "其他", "", "", "24:00", "Asia/Shanghai")), "invalid transaction hour");
+        rejects(() -> LedgerRules.validate(new Entry("bad", "expense", 1, "2026-11-17", "其他", "", "", "09:00", "invalid")), "invalid transaction zone");
         System.out.println("PASS: " + assertions + " core assertions");
     }
 }

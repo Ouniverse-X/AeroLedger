@@ -83,7 +83,7 @@ Compose Preview 基线位于 `ui/DesignPreviews.kt`。产品结构和业务边�
 
 ## Receipt Recognition Development
 
-保持现有单模块结构和数据库版本。`domain/EntryDraft` 表示可编辑提案；`data/EntryDrafts` 统一手动、文本、缴费和识图预填；`domain/CategoryCatalog` 是类别代码与显示名称的共同来源。新增手动字段时，应同步更新草稿与共用 `EntryEditor`。
+保持现有单模块结构；数据库新增字段须通过显式迁移保留旧数据。`domain/EntryDraft` 表示可编辑提案；`data/EntryDrafts` 统一手动、文本、缴费和识图预填；`domain/CategoryCatalog` 是类别代码与显示名称的共同来源。新增手动字段时，应同步更新草稿与共用 `EntryEditor`。
 
 `recognition/ReceiptImageReader` 只读图并限制资源，`OcrEngine` 只返回文字和坐标，`ReceiptParser` 只生成草稿。`RecognitionViewModel` 管理识别/编辑/已保存状态，`ReceiptActivity` 处理系统选择与分享。只有用户确认时才调用原有 `LedgerRepository.saveEntry`；勿在 OCR、解析器或分享回调中直接入账。
 
@@ -118,3 +118,11 @@ adb exec-out run-as cn.edu.buaa.ledger cat files/corpus/ocr-results.json
 新增 JVM 回归覆盖失败/取消付款、分行下单/发货时间以及首尾状态两种多单布局。`ReceiptUiTests.originalPreviewAndReplacementProtectUnsavedEdits` 覆盖原图打开与 Activity 重建、取消替换、坏图替换失败保留以及成功后清理旧原图；需连接专用设备执行，编译测试包不代表设备执行通过。
 
 原图副本仅保留在私有 `cache/receipt-sessions`，`RecognitionState` 只存文件名；预览复用有界解码与 EXIF 转正。正常会话退出和成功替换会删除当前旧图；异常退出留下的副本，在后续进入时清理一小时前的非当前文件。用户确认替换后依然保留旧会话，待新图成功解析后才切换。
+
+### Category and transaction-time regression
+
+当前数据库版本3，生产数据库必须注册MIGRATION_1_2和MIGRATION_2_3。类别代码保持稳定，旧CSV类别显示名在导入边界归一化。导出九列CSV，导入接受六列、七列及九列表头；自填分类仅限其他，最多20字；可选时间HH:mm与ZoneId成对保存。
+
+`CategoryMigrationTests`从真实版本1和2表结构迁移至当前版本并由Room验证；`EntryDatesTest`覆盖当月、历史补账及跨年月份；`EntryFlowUiTests`覆盖首页月份边界及自填分类、时间开关与保存。项目原有Espresso版本在API37模拟器上因InputManager.getInstance移除无法初始化；界面测试应使用API35兼容设备，不将测试包编译成功计为界面验收通过。
+
+本轮本机回归结果：JDK17、Gradle8.9、SDK35/Build-Tools35.0.0；核心Java断言58项通过；JVM测试22项通过；assembleDebug、assembleDebugAndroidTest、lintDebug全部成功，lint报告No issues found。API37专用模拟器执行CategoryMigrationTests（2项）、LedgerDeviceTests（5项）与ReceiptDeviceTests（4项），共11项通过。EntryFlowUiTests在API37因测试框架初始化失败，未执行应用断言；需要兼容的API35设备补验，不计为通过。未安装新的系统镜像，未修改全局JDK或升级依赖。

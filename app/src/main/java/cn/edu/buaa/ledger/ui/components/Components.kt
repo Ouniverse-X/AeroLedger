@@ -88,6 +88,7 @@ private fun Color.luminanceValue() = red * .2126f + green * .7152f + blue * .072
             Text(item.customCategory.ifBlank { categoryName(item.categoryCode) }, style = MaterialTheme.typography.titleMedium)
             Text(item.note.ifBlank { LocalDate.ofEpochDay(item.dateEpochDay).toString() }, maxLines = 2,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+            if(item.transactionTime.isNotEmpty()) Subtitle("${LocalDate.ofEpochDay(item.dateEpochDay)} ${item.transactionTime} · ${item.transactionZone}")
             if(item.sourceType == "text") Text("文本辅助录入", style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
         }
         Column(horizontalAlignment = Alignment.End) {

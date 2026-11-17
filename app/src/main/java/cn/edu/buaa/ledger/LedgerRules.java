@@ -38,6 +38,14 @@ public final class LedgerRules {
         } catch (Exception ex) { throw new IllegalArgumentException("日期必须为有效的 YYYY-MM-DD，范围为 1900～2100 年"); }
         if (!Arrays.asList(e.isExpense() ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).contains(cn.edu.buaa.ledger.domain.CategoryCatalog.normalize(e.category, e.type)))
             throw new IllegalArgumentException("类别与收支类型不匹配");
+        if (e.transactionTime == null || e.transactionZone == null)
+            throw new IllegalArgumentException("交易时间无效");
+        if (!e.transactionTime.isEmpty()) {
+            if (!e.transactionTime.matches("(?:[01][0-9]|2[0-3]):[0-5][0-9]"))
+                throw new IllegalArgumentException("交易时间应为 HH:mm");
+            try { java.time.ZoneId.of(e.transactionZone); }
+            catch (Exception ex) { throw new IllegalArgumentException("交易时区无效"); }
+        } else if (!e.transactionZone.isEmpty()) throw new IllegalArgumentException("未填写交易时间时无需时区");
         if (e.customCategory == null || e.customCategory.length() > 20 ||
             (!e.customCategory.isEmpty() && !"其他".equals(cn.edu.buaa.ledger.domain.CategoryCatalog.normalize(e.category, e.type))))
             throw new IllegalArgumentException("自填分类仅限其他，最多 20 字");

@@ -147,7 +147,7 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
     companion object {
         fun create(context: Context): LedgerRepository {
             val app = context.applicationContext
-            val db = Room.databaseBuilder(app, LedgerDatabase::class.java, "campus-ledger-v2.db").addMigrations(LedgerDatabase.MIGRATION_1_2).build()
+            val db = Room.databaseBuilder(app, LedgerDatabase::class.java, "campus-ledger-v2.db").addMigrations(LedgerDatabase.MIGRATION_1_2, LedgerDatabase.MIGRATION_2_3).build()
             return LedgerRepository(app, db)
         }
     }
