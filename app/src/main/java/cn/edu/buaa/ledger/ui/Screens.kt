@@ -24,14 +24,6 @@ import cn.edu.buaa.ledger.ui.components.*
 import java.time.*
 import java.time.format.DateTimeFormatter
 
-@Composable fun PageTitle(title: String, subtitle: String) {
-    if(LocalConfiguration.current.screenHeightDp<500)return
-    Column(verticalArrangement=Arrangement.spacedBy(6.dp)) {
-        Text(title,style=MaterialTheme.typography.headlineMedium)
-        Subtitle(subtitle)
-    }
-}
-
 @Composable fun MonthPicker(filter: FilterSpec, change: (FilterSpec) -> Unit, latestDate: LocalDate? = null) {
     val context=LocalContext.current
     Surface(color=MaterialTheme.colorScheme.surface,shape=RoundedCornerShape(16.dp)) {
@@ -64,8 +56,7 @@ import java.time.format.DateTimeFormatter
             TextButton(edit) { Text(if(budget==0L) "设置预算" else "调整") }
         }
         if(budget==0L) {
-            Text("给这个月留一点余量",style=MaterialTheme.typography.titleLarge)
-            Subtitle("设定月度支出目标，让日常开销更有计划。")
+            Subtitle("尚未设置预算")
         } else {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                 Tag(when { remaining<0->"已超支";remaining==0L->"预算已用完";else->"剩余额度" },if(remaining<0) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
@@ -87,7 +78,6 @@ import java.time.format.DateTimeFormatter
     val monthEntries=data.monthEntries(filter.month); val total=monthEntries.totals()
     val compact=LocalConfiguration.current.screenHeightDp<500
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        if(!compact)item { PageTitle("校园日常，心中有数。","记下每一笔，留点余量给喜欢的生活。") }
         item { MonthPicker(filter,change,latestDate=today) }
         item {
           Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -128,11 +118,10 @@ import java.time.format.DateTimeFormatter
             }
         }
         item { SectionHeader("最近账目","查看全部",onAll) }
-        if(monthEntries.isEmpty()) item { EmptyState("这个月，从第一笔开始","一顿食堂午餐、一笔生活费，都值得记下。","载入校园示例",onDemo) }
+        if(monthEntries.isEmpty()) item { EmptyState("本月暂无账目","","载入校园示例",onDemo) }
         else item { Panel {
             monthEntries.take(5).forEachIndexed { i,e -> if(i>0) HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.55f)); EntryRow(e) {onEntry(e)} }
         } }
-        item { Subtitle("数据保存在本机 · 示例账目均已单独标注") }
     }
 }
 
@@ -168,7 +157,6 @@ import java.time.format.DateTimeFormatter
     val entries=filter.select(data.entries);val total=entries.totals()
     var limit by rememberSaveable(filter) { mutableIntStateOf(50) }
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item { PageTitle("每一笔，都有迹可循。","按日期与类别，找到想核对的日常。") }
         item { Column { Filters(filter,change) } }
         item { Panel {
             Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
@@ -202,7 +190,6 @@ import java.time.format.DateTimeFormatter
 @Composable fun StatisticsScreen(data: LedgerData,filter: FilterSpec,change:(FilterSpec)->Unit,onDetails:(FilterSpec)->Unit,onReview:()->Unit) {
     val entries=filter.select(data.entries)
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        item { PageTitle("花在哪里，一目了然。","把数字看清楚，把生活安排好。") }
         item { Column { Filters(filter,change) } }
         item { Subtitle("分类图范围：${filter.label} · ${filter.category?.let(::categoryName)?:"全部类别"}") }
         item { CategoryDonut(entries) {code->onDetails(filter.copy(category=code,type="expense"))} }
@@ -210,9 +197,8 @@ import java.time.format.DateTimeFormatter
         item { Panel {
             Row(horizontalArrangement=Arrangement.spacedBy(10.dp),verticalAlignment=Alignment.CenterVertically) {
                 Surface(color=MaterialTheme.colorScheme.primaryContainer,shape=RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.AutoStories,null,Modifier.padding(12.dp),tint=MaterialTheme.colorScheme.primary) }
-                Column(Modifier.weight(1f)) { Text("月度消费回顾",style=MaterialTheme.typography.titleLarge);Subtitle("${filter.month} · 全月全部类别") }
+                Column(Modifier.weight(1f)) { Text("月度回顾",style=MaterialTheme.typography.titleLarge);Subtitle("${filter.month} · 全月全部类别") }
             }
-            Subtitle("从真实账目出发，看看这个月的支出与预算。可以核对依据，也可以写下自己的想法。")
             PrimaryButton(if(data.reviews.any{it.month==filter.month.toString()}) "查看已保存回顾" else "生成本月回顾",onClick=onReview)
         } }
     }
@@ -230,18 +216,17 @@ fun formatDue(at: Long) = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(Inst
         text={Text("${plan.name} · ¥${plan.amountCents.money()}\n将撤销提醒，不自动生成账目。如需记账，可点击“另记一笔”。")},
         confirmButton={TextButton({onChange(plan.copy(status="paid"));confirm=null}){Text("标记已缴")}},dismissButton={TextButton({confirm=null}){Text("返回")}}) }
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        item { PageTitle("到期之前，心里有底。","电费、网费与生活计划，都妥善安排。") }
         item { Panel {
             Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                 Icon(if(notifications)Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,null,tint=MaterialTheme.colorScheme.primary)
-                Text(if(notifications)"系统通知已开启" else "开启通知，及时提醒",style=MaterialTheme.typography.titleMedium)
+                Text(if(notifications)"系统通知已开启" else "系统通知未开启",style=MaterialTheme.typography.titleMedium)
             }
             Subtitle(if(!notifications)"计划会保留在本机。允许通知后，未提醒的到期项目会补发。" else if(exact)"到期发送系统通知；已缴、取消或关闭后撤销。" else "当前使用弹性提醒，系统可能延迟。允许精确提醒后可准时验收。")
             if(!notifications) PrimaryButton("开启系统通知",onClick=onPermission)
             if(!exact) TextButton(onExact) { Text("允许精确提醒");Icon(Icons.Outlined.ChevronRight,null,Modifier.size(16.dp)) }
         } }
         item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) { Text("待缴计划",style=MaterialTheme.typography.titleLarge);Tag("${pending.size} 项") } }
-        if(pending.isEmpty()) item { EmptyState("暂时没有待缴项目","用右下角的加号，安排下一笔生活缴费。",icon=Icons.Outlined.EventAvailable) }
+        if(pending.isEmpty()) item { EmptyState("暂时没有待缴项目","点击“添加计划”新建缴费项目。",icon=Icons.Outlined.EventAvailable) }
         items(pending,key={it.id}) { plan -> PaymentCard(plan,onEdit,onChange,{confirm=it},onRecord,notifications) }
         if(history.isNotEmpty()) {
             item { SectionHeader("历史计划 · ${history.size} 项",if(showHistory)"收起" else "展开") {showHistory=!showHistory} }

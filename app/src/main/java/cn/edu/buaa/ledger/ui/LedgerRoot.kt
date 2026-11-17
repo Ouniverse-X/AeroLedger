@@ -122,7 +122,7 @@ import java.util.UUID
             topBar={
                 Row(Modifier.fillMaxWidth().statusBarsPadding().padding(horizontal=20.dp,vertical=if(landscape)4.dp else 12.dp),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
                     Surface(color=MaterialTheme.colorScheme.primary,shape=RoundedCornerShape(13.dp)) {Icon(Icons.Outlined.FlightTakeoff,null,Modifier.padding(if(landscape)6.dp else 10.dp).size(if(landscape)19.dp else 23.dp),tint=MaterialTheme.colorScheme.onPrimary)}
-                    Column(Modifier.weight(1f)) {Text("航小账",style=MaterialTheme.typography.titleLarge);if(!landscape)Text("北航校园生活记账本",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.onSurfaceVariant)}
+                    Text("航小账",modifier=Modifier.weight(1f),style=MaterialTheme.typography.titleLarge)
                     IconButton({context.startActivity(Intent(context,cn.edu.buaa.ledger.recognition.ReceiptActivity::class.java))},enabled=data.ready){Icon(Icons.Outlined.DocumentScanner,"图片记账")}
                     IconButton({sheet="settings"}){Icon(Icons.Outlined.Tune,"设置与数据管理")}
                 }
@@ -160,7 +160,7 @@ import java.util.UUID
               Box(Modifier.weight(1f).fillMaxHeight()) {
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
-                    !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在打开你的校园账本…")}
+                    !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
                     tab==0->Overview(data,filter,::change,{sheet="budget"},{sheet="entry:${it.id}"},{change(filter.copy(day=null,category=null,type=null));tab=1},{tab=3},{confirmDemo=true})
                     tab==1->EntriesScreen(data,filter,::change,{sheet="entry:${it.id}"},{sheet="csv"},{sheet="text"})
                     tab==2->StatisticsScreen(data,filter,::change,{change(it);tab=1},{sheet="review"})
@@ -208,7 +208,7 @@ import java.util.UUID
 
 @Composable private fun CsvMenu(busy:Boolean,onImport:()->Unit,onAll:()->Unit,onFiltered:()->Unit) {
     Column(Modifier.fillMaxWidth().padding(20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Text("账目随你，妥善保存",style=MaterialTheme.typography.headlineSmall)
+        Text("导入与导出",style=MaterialTheme.typography.headlineSmall)
         Subtitle("通过系统文件选择器导入或导出 UTF-8 CSV。只包含账目，预算、计划与回顾不随文件转移。")
         PrimaryButton("选择文件并预览导入",!busy,onClick=onImport)
         OutlinedButton(onAll,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Icon(Icons.Outlined.FileDownload,null);Spacer(Modifier.width(8.dp));Text("导出全部账目")}
@@ -220,7 +220,7 @@ import java.util.UUID
 
 @Composable private fun ImportPreviewSheet(preview:ImportPreview,busy:Boolean,onConfirm:(Boolean)->Unit) {
     var keep by rememberSaveable{mutableStateOf(false)}
-    EditorFrame("先核对，再导入",preview.filename,busy,"确认导入 ${preview.valid+if(keep)preview.suspicious else 0} 笔",{onConfirm(keep)}) {
+    EditorFrame("导入预览",preview.filename,busy,"确认导入 ${preview.valid+if(keep)preview.suspicious else 0} 笔",{onConfirm(keep)}) {
         Panel {
             Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Column(Modifier.weight(1f)){Text("${preview.valid}",style=MaterialTheme.typography.headlineSmall);Subtitle("校验通过")};Column(Modifier.weight(1f)){Text("${preview.duplicate}",style=MaterialTheme.typography.headlineSmall);Subtitle("确定重复")}}
             Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Column(Modifier.weight(1f)){Text("${preview.suspicious}",style=MaterialTheme.typography.headlineSmall);Subtitle("疑似重复")};Column(Modifier.weight(1f)){Text("${preview.invalid}",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.error);Subtitle("无效记录")}}
@@ -239,7 +239,7 @@ import java.util.UUID
 @Composable private fun ImportResultSheet(values:List<Int>,onClose:()->Unit,onView:()->Unit) {
     Column(Modifier.fillMaxWidth().padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Icon(Icons.Outlined.TaskAlt,null,tint=MaterialTheme.colorScheme.secondary,modifier=Modifier.size(42.dp))
-        Text("账目已整理完成",style=MaterialTheme.typography.headlineSmall)
+        Text("导入结果",style=MaterialTheme.typography.headlineSmall)
         Panel{Text("成功导入 ${values[0]} 笔",style=MaterialTheme.typography.titleLarge);Subtitle("跳过重复 ${values[1]} 笔 · 无效记录 ${values[2]} 笔");Subtitle("新账目会按文件中的日期显示，可切换月份查看。预算、计划与回顾未改变。")}
         PrimaryButton("前往账目",onClick=onView)
         TextButton(onClose,Modifier.fillMaxWidth()){Text("完成")}
@@ -247,17 +247,17 @@ import java.util.UUID
 }
 
 @Composable private fun TextEntrySheet(raw:String,change:(String)->Unit,onParse:()->Unit) {
-    EditorFrame("把一句日常，变成账目","本地规则提取，不发送到网络；结果由你确认。",false,"提取并核对账目",onParse) {
+    EditorFrame("文本记账","本地规则提取，不发送到网络；结果由你确认。",false,"提取并核对账目",onParse) {
         OutlinedTextField(raw,{change(it.take(2000))},Modifier.fillMaxWidth(),label={Text("粘贴或输入消费记录")},placeholder={Text("例如：2026-11-04 学一食堂午餐 12.5 元")},minLines=6,shape=RoundedCornerShape(14.dp),supportingText={Text("${raw.length}/2000")})
-        Panel {Text("试试这些校园日常",style=MaterialTheme.typography.titleMedium);listOf("${LocalDate.now()} 学一食堂午餐 12.5 元","今天地铁通勤 6 元","昨天收到助教劳务 500 元").forEach{example->TextButton({change(example)},Modifier.fillMaxWidth()){Text(example)}}}
+        Panel {Text("示例",style=MaterialTheme.typography.titleMedium);listOf("${LocalDate.now()} 学一食堂午餐 12.5 元","今天地铁通勤 6 元","昨天收到助教劳务 500 元").forEach{example->TextButton({change(example)},Modifier.fillMaxWidth()){Text(example)}}}
         Subtitle("多个金额、日期缺失或格式不清时会留待核对；确认前不会生成正式账目。")
     }
 }
 
 @Composable private fun SettingsSheet(theme:String,onTheme:(String)->Unit,onDemo:()->Unit,onCsv:()->Unit,onNotify:()->Unit,notifications:Boolean) {
     Column(Modifier.fillMaxWidth().fillMaxHeight(.9f).padding(horizontal=20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Text("你的账本，按你的习惯",style=MaterialTheme.typography.headlineSmall)
-        Subtitle("航小账 1.0 · 北航校园生活记账本")
+        Text("设置",style=MaterialTheme.typography.headlineSmall)
+        Subtitle("航小账 1.0")
         Panel {Text("外观",style=MaterialTheme.typography.titleMedium)
             listOf("system" to "跟随系统","light" to "浅色","dark" to "深色").forEach{(v,label)->Row(Modifier.fillMaxWidth().clickable{onTheme(v)},verticalAlignment=Alignment.CenterVertically){RadioButton(theme==v,{onTheme(v)});Text(label)}}
         }
@@ -266,7 +266,7 @@ import java.util.UUID
             SettingsAction(Icons.Outlined.ImportExport,"CSV 导入与导出",onCsv)
             SettingsAction(Icons.Outlined.School,"载入校园示例数据",onDemo)
         }
-        Panel {Text("本机保存，自己掌握",style=MaterialTheme.typography.titleMedium)
+        Panel {Text("数据存储",style=MaterialTheme.typography.titleMedium)
             Subtitle("账目、预算、计划和回顾均保存于本机，无需注册。卸载会删除本地数据；建议定期导出账目。CSV 不包含预算、计划和回顾。")
             Subtitle("缴费计划不会自动入账。通知权限用于到期提醒，精确提醒授权用于准时送达，开机权限用于恢复计划；文件由系统选择器授权。系统强行停止后需重新打开应用恢复提醒。")
         }

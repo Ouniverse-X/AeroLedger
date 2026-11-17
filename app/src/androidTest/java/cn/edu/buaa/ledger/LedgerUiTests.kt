@@ -26,7 +26,7 @@ class LedgerUiTests {
         compose.onNodeWithText("金额（元）").performTextInput("12.50")
         compose.onNodeWithText("备注").performScrollTo().performTextInput(note)
         compose.onNodeWithText("保存账目").performClick()
-        compose.waitUntil(10000){compose.onAllNodesWithText("记一笔校园日常").fetchSemanticsNodes().isEmpty()}
+        compose.waitUntil(10000){compose.onAllNodesWithText("金额（元）").fetchSemanticsNodes().isEmpty()}
         compose.onNodeWithText("账目",useUnmergedTree=true).performClick()
         compose.onNodeWithText(note).assertExists()
         compose.onNodeWithText(note).performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }

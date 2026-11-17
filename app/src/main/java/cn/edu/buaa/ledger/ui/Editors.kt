@@ -27,7 +27,8 @@ import java.util.UUID
 @Composable fun EditorFrame(title: String,subtitle: String,busy: Boolean,action: String,onAction:()->Unit,content:@Composable ColumnScope.()->Unit) {
     Column(Modifier.fillMaxWidth().fillMaxHeight(.94f).imePadding().padding(horizontal=20.dp)) {
         Text(title,style=MaterialTheme.typography.headlineSmall)
-        Spacer(Modifier.height(5.dp));Subtitle(subtitle);Spacer(Modifier.height(18.dp))
+        if(subtitle.isNotBlank()) { Spacer(Modifier.height(5.dp));Subtitle(subtitle) }
+        Spacer(Modifier.height(12.dp))
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp),content=content)
         Spacer(Modifier.height(12.dp));PrimaryButton(action,busy=busy,onClick=onAction);Spacer(Modifier.height(18.dp))
     }
@@ -60,8 +61,8 @@ import java.util.UUID
     val context=LocalContext.current
     if(deleteConfirm && original!=null) AlertDialog(onDismissRequest={deleteConfirm=false},title={Text("删除这笔账目？")},text={Text("删除后预算、汇总与图表会重新计算。此操作无法撤销。")},
         confirmButton={TextButton({onDelete(original.id);deleteConfirm=false;onClose()}){Text("删除账目",color=MaterialTheme.colorScheme.error)}},dismissButton={TextButton({deleteConfirm=false}){Text("保留")}})
-    EditorFrame(if(original!=null)"编辑账目" else if(parsed!=null || draft!=null)"核对后，记下这一笔" else "记一笔校园日常",
-        if(parsed!=null || draft!=null)"从原文中提取的内容，需要你确认后才保存。" else "金额精确到分，日常开销清清楚楚。",busy,
+    EditorFrame(if(original!=null)"编辑账目" else if(parsed!=null || draft!=null)"核对账目" else "记一笔",
+        if(parsed!=null || draft!=null)"从原文中提取的内容，需要你确认后才保存。" else "",busy,
         if(keepAdding&&original==null)"保存并继续" else "保存账目",onAction={
             val cents=try {LedgerRules.parseMoney(amount)} catch(e:IllegalArgumentException){amountError=e.message;return@EditorFrame}
             val day=try {LocalDate.parse(date).also {require(it.year in 1900..2100)}} catch(e:Exception){dateError="请选择有效日期，范围为 1900～2100 年";return@EditorFrame}
@@ -90,7 +91,7 @@ import java.util.UUID
             FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) { parsed.amounts.forEach { candidate -> LedgerChip(amount==candidate,{amount=candidate;amountError=null},label={Text("¥$candidate")}) } }
         }
         OutlinedTextField(amount,{amount=it.take(12);amountError=null},Modifier.fillMaxWidth(),label={Text("金额（元）")},
-            prefix={Text("¥ ")},textStyle=MaterialTheme.typography.headlineMedium,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),
+            prefix={Text("¥ ")},textStyle=MaterialTheme.typography.headlineMedium.copy(fontSize=28.sp,lineHeight=36.sp),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),
             singleLine=true,isError=amountError!=null,supportingText={Text(amountError?:"0.01～999999.99 元，最多两位小数")},shape=RoundedCornerShape(14.dp))
         Text("选择类别",style=MaterialTheme.typography.titleMedium)
         val categories=campusCategories.filter{it.type==type}
@@ -145,13 +146,13 @@ import java.util.UUID
 @Composable fun BudgetEditor(month:YearMonth,current:Long,busy:Boolean,onSave:(Long)->Unit) {
     var value by rememberSaveable {mutableStateOf(if(current==0L)"" else current.money())}
     var error by rememberSaveable {mutableStateOf<String?>(null)}
-    EditorFrame("安排这个月的预算","${month.year} 年 ${month.monthValue} 月 · 总支出预算",busy,"保存预算",{
+    EditorFrame("月预算","${month.year} 年 ${month.monthValue} 月 · 总支出预算",busy,"保存预算",{
         try{onSave(LedgerRules.parseMoney(value))}catch(e:IllegalArgumentException){error=e.message}
     }) {
         OutlinedTextField(value,{value=it.take(12);error=null},Modifier.fillMaxWidth(),label={Text("预算（元）")},prefix={Text("¥ ")},
-            singleLine=true,textStyle=MaterialTheme.typography.headlineMedium,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),
+            singleLine=true,textStyle=MaterialTheme.typography.headlineMedium.copy(fontSize=28.sp,lineHeight=36.sp),keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),
             shape=RoundedCornerShape(14.dp),isError=error!=null,supportingText={Text(error?:"0.01～999999.99 元")})
-        Panel { Icon(Icons.Outlined.TipsAndUpdates,null,tint=MaterialTheme.colorScheme.primary);Text("给生活留一点余量",style=MaterialTheme.typography.titleMedium);Subtitle("预算只计算这个月实际记录的支出，收入不会抵扣已支出。修改账目后，剩余额度会自动更新。") }
+        Panel { Subtitle("预算只计算这个月实际记录的支出，收入不会抵扣已支出。修改账目后，剩余额度会自动更新。") }
     }
 }
 
@@ -170,7 +171,7 @@ import java.util.UUID
     if(confirmCancel) AlertDialog(onDismissRequest={confirmCancel=false},title={Text("取消此计划？")},text={Text("保留历史记录，撤销系统通知和到期提醒，不生成账目。")},confirmButton={TextButton({
         plan?.let {onSave(it.copy(status="cancelled"))};confirmCancel=false
     }){Text("取消计划")}},dismissButton={TextButton({confirmCancel=false}){Text("保留")}})
-    EditorFrame(if(plan==null)"安排一项生活缴费" else "管理缴费计划","记下到期日，把琐事交给提醒。",busy,"保存计划",{
+    EditorFrame(if(plan==null)"添加缴费计划" else "编辑缴费计划","",busy,"保存计划",{
         try {
             require(name.isNotBlank()) {"请填写缴费项目"}
             val cents=LedgerRules.parseMoney(amount)
@@ -212,7 +213,7 @@ import java.util.UUID
     var confirm by remember {mutableStateOf(false)}
     if(confirm) AlertDialog(onDismissRequest={confirm=false},title={Text("按最新账目重新生成？")},text={Text("将替换当前编辑框内容。点击“保存回顾”后才会覆盖已保存的回顾。")},
         confirmButton={TextButton({body=generate();basis=signature;generatedAt=System.currentTimeMillis();confirm=false}){Text("重新生成")}},dismissButton={TextButton({confirm=false}){Text("保留编辑")}})
-    EditorFrame("给这个月，写一份回顾","$month · 全月 / 全部类别 · 本地统计生成",busy,"保存回顾",{onSave(ReviewEntity(month.toString(),body,basis,generatedAt))}) {
+    EditorFrame("月度回顾","$month · 全月 / 全部类别 · 本地统计生成",busy,"保存回顾",{onSave(ReviewEntity(month.toString(),body,basis,generatedAt))}) {
         Panel {
             SectionHeader("当前统计依据","查看明细"){onDetails(null)}
             Text("${totals.count} 笔账目",style=MaterialTheme.typography.titleMedium)

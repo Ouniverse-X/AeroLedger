@@ -120,7 +120,7 @@ private fun Color.luminanceValue() = red * .2126f + green * .7152f + blue * .072
                 Icon(icon,null,Modifier.size(34.dp),tint=MaterialTheme.colorScheme.primary)
             }
             Text(title,style=MaterialTheme.typography.titleMedium)
-            Subtitle(description)
+            if(description.isNotBlank()) Subtitle(description)
             if(action!=null) FilledTonalButton(onAction, shape=RoundedCornerShape(12.dp)) { Text(action) }
         }
     }
