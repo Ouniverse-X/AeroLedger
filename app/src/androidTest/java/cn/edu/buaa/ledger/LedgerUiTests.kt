@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -39,10 +40,12 @@ class LedgerUiTests {
         compose.onNodeWithText("缴费项目").assertDoesNotExist()
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithTag("nav-SETTINGS").performClick()
-        compose.onNodeWithText("外观").assertIsDisplayed()
+        compose.onNodeWithText("外观").assertIsDisplayed().performClick()
+        compose.onNodeWithText("主题色").assertIsDisplayed()
         compose.onNodeWithText("深色").performClick()
         compose.onNodeWithText("浅色").performClick()
         compose.onNodeWithText("跟随系统").performClick()
+        compose.onNodeWithTag("appearance-back").performClick()
         compose.onNodeWithText("CSV 导入与导出").performScrollTo().performClick()
         compose.onNodeWithText("导入与导出").assertIsDisplayed()
         androidx.test.espresso.Espresso.pressBack()
@@ -52,6 +55,31 @@ class LedgerUiTests {
         compose.onNodeWithTag("bills-list").performScrollToNode(hasText("账单明细"))
         compose.onNodeWithText("账单明细").assertIsDisplayed()
         compose.onNodeWithText("查看全部").assertDoesNotExist()
+    }
+
+    @Test fun appearanceSelectionPersistsAcrossRecreation() {
+        awaitNavigation()
+        val app=ApplicationProvider.getApplicationContext<LedgerApp>()
+        val store=cn.edu.buaa.ledger.data.AppearanceStore(app)
+        val originalMode=runBlocking { store.theme.first() }
+        val originalColor=runBlocking { store.themeColor.first() }
+        try {
+            compose.onNodeWithTag("nav-SETTINGS").performClick()
+            compose.onNodeWithText("外观").performClick()
+            compose.onNodeWithTag("nav-BILLS").assertDoesNotExist()
+            compose.onNodeWithTag("theme-color-purple").performClick()
+            compose.onNodeWithTag("theme-mode-dark").performScrollTo().performClick()
+            compose.waitUntil(10000) { runBlocking { store.themeColor.first()=="purple" && store.theme.first()=="dark" } }
+            compose.activityRule.scenario.recreate()
+            compose.onNodeWithTag("theme-color-purple").performScrollTo().assertIsSelected()
+            compose.onNodeWithTag("theme-mode-dark").performScrollTo().assertIsSelected()
+            androidx.test.espresso.Espresso.pressBack()
+            compose.onNodeWithTag("nav-SETTINGS").assertIsSelected()
+            compose.onNodeWithText("外观").performClick()
+            compose.onNodeWithTag("theme-color-blue").performClick()
+            compose.onNodeWithTag("theme-mode-light").performScrollTo().performClick()
+            compose.onNodeWithTag("theme-color-blue").performScrollTo().assertIsSelected()
+        } finally { runBlocking { store.setTheme(originalMode);store.setThemeColor(originalColor) } }
     }
 
     @Test fun recordEditBudgetAndScreens() {
