@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.*
 import cn.edu.buaa.ledger.data.*
 import cn.edu.buaa.ledger.domain.*
 import cn.edu.buaa.ledger.ui.components.*
+import cn.edu.buaa.ledger.ui.theme.LocalThemeColor
 import java.time.*
 import java.time.format.DateTimeFormatter
 
@@ -109,6 +110,7 @@ import java.time.format.DateTimeFormatter
 @Composable fun BillsScreen(data: LedgerData,filter: FilterSpec,change:(FilterSpec)->Unit,onEntry:(TransactionEntity)->Unit,onCsv:()->Unit,onText:()->Unit,
     onBudget:()->Unit,onPlans:()->Unit) {
     val today=rememberDeviceDate()
+    val accent=LocalThemeColor.current
     val monthTotal=data.monthEntries(filter.month).totals()
     val compact=LocalConfiguration.current.screenHeightDp<500
     val entries=filter.select(data.entries);val total=entries.totals()
@@ -118,21 +120,21 @@ import java.time.format.DateTimeFormatter
         item {
           Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
             Surface(modifier=if(compact)Modifier.weight(1f) else Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),color=Color.Transparent) {
-                Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF2257B8),Color(0xFF153F86)))).padding(if(compact)16.dp else 24.dp),verticalArrangement=Arrangement.spacedBy(if(compact)8.dp else 14.dp)) {
+                Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(accent.start,accent.end))).padding(if(compact)16.dp else 24.dp),verticalArrangement=Arrangement.spacedBy(if(compact)8.dp else 14.dp)) {
                     Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                        Text("本月支出",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyLarge)
-                        Icon(Icons.Outlined.FlightTakeoff,null,tint=Color(0xFFBCD3FF),modifier=Modifier.size(25.dp))
+                        Text("本月支出",color=Color.White.copy(alpha=.85f),style=MaterialTheme.typography.bodyLarge)
+                        Icon(Icons.Outlined.FlightTakeoff,null,tint=Color.White.copy(alpha=.8f),modifier=Modifier.size(25.dp))
                     }
                     Money(monthTotal.expense,Modifier.fillMaxWidth(),size=if(compact)30 else 38,color=Color.White)
                     if(!compact)Spacer(Modifier.height(4.dp))
                     HorizontalDivider(color=Color.White.copy(alpha=.18f))
                     Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                            Text("本月收入",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyMedium)
+                            Text("本月收入",color=Color.White.copy(alpha=.85f),style=MaterialTheme.typography.bodyMedium)
                             Money(monthTotal.income,Modifier.fillMaxWidth(),size=22,color=Color.White)
                         }
                         Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                            Text("收支结余",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyMedium)
+                            Text("收支结余",color=Color.White.copy(alpha=.85f),style=MaterialTheme.typography.bodyMedium)
                             Money(monthTotal.balance,Modifier.fillMaxWidth(),size=22,color=Color.White)
                         }
                     }

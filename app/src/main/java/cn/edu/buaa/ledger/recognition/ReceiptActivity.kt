@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.platform.testTag
 import androidx.core.content.IntentCompat
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import cn.edu.buaa.ledger.data.AppearanceStore
 import cn.edu.buaa.ledger.ui.EntryEditor
 import cn.edu.buaa.ledger.ui.theme.LedgerTheme
 import cn.edu.buaa.ledger.capture.CaptureActivity
@@ -42,7 +43,10 @@ class ReceiptActivity : ComponentActivity() {
             }
             BackHandler(state.editing || busy) { if (!busy) model.stopEditing() }
             var showOriginal by rememberSaveable { mutableStateOf(false) }
-            LedgerTheme("system") {
+            val appearance=remember { AppearanceStore(applicationContext) }
+            val theme by appearance.theme.collectAsStateWithLifecycle(initialValue="system")
+            val themeColor by appearance.themeColor.collectAsStateWithLifecycle(initialValue="blue")
+            LedgerTheme(theme,themeColor) {
                 if (showOriginal && state.sourceName != null)
                     ReceiptOriginal(state.sourceName!!) { showOriginal = false }
                 if (state.pendingImport != null) AlertDialog(

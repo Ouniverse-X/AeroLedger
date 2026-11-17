@@ -8,6 +8,7 @@ import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
+import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.*
@@ -82,6 +83,9 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
 @Composable fun LedgerRoot(vm:LedgerViewModel,openedPlan:Long?,clearPlan:()->Unit,onDark:(Boolean)->Unit) {
     val data by vm.data.collectAsStateWithLifecycle()
     val theme by vm.theme.collectAsStateWithLifecycle()
+    val themeColor by vm.themeColor.collectAsStateWithLifecycle()
+    var appearanceOpen by rememberSaveable { mutableStateOf(false) }
+    BackHandler(appearanceOpen) { appearanceOpen=false }
     val busy by vm.busy.collectAsStateWithLifecycle()
     val startupError by vm.startupError.collectAsStateWithLifecycle()
     val preview by vm.importPreview.collectAsStateWithLifecycle()
@@ -153,23 +157,24 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }}
     fun export(all:Boolean) {exportAll=all;sheet=null;exportFile.launch("航小账-${if(all)"全部账目" else filter.label}.csv")}
 
-    LedgerTheme(theme) {
+    LedgerTheme(theme,themeColor) {
         Scaffold(containerColor=MaterialTheme.colorScheme.background,
             topBar={
                 Surface(color=MaterialTheme.colorScheme.primary,contentColor=MaterialTheme.colorScheme.onPrimary) {
                     Box(Modifier.fillMaxWidth().statusBarsPadding().height(if(landscape)44.dp else 56.dp),contentAlignment=Alignment.Center) {
-                        Text(tab.title,style=MaterialTheme.typography.titleLarge)
+                        if(appearanceOpen) IconButton({appearanceOpen=false},Modifier.align(Alignment.CenterStart).testTag("appearance-back")) { Icon(Icons.Outlined.ArrowBack,"返回设置") }
+                        Text(if(appearanceOpen)"外观" else tab.title,style=MaterialTheme.typography.titleLarge)
                     }
                 }
             },
-            bottomBar={if(!landscape)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
+            bottomBar={if(!landscape&&!appearanceOpen)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
             snackbarHost={SnackbarHost(snack)}
         ) {padding->
             // Let page content extend behind the raised button instead of reserving a blank strip.
-            val contentBottom=(padding.calculateBottomPadding()-if(landscape)0.dp else 18.dp).coerceAtLeast(0.dp)
+            val contentBottom=(padding.calculateBottomPadding()-if(landscape||appearanceOpen)0.dp else 18.dp).coerceAtLeast(0.dp)
             Row(Modifier.padding(start=padding.calculateStartPadding(LocalLayoutDirection.current),
                 end=padding.calculateEndPadding(LocalLayoutDirection.current),top=padding.calculateTopPadding(),bottom=contentBottom).fillMaxSize()) {
-                if(landscape)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
+                if(landscape&&!appearanceOpen)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
                     FilledIconButton(onClick={sheet="entry:new"},enabled=data.ready,
                         modifier=Modifier.size(48.dp).testTag("primary-add").semantics {contentDescription="记账"}) {Icon(Icons.Outlined.Add,null)}
                     Destination.entries.forEach { destination ->
@@ -183,12 +188,13 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
+                    appearanceOpen->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
                     tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{sheet="csv"},{sheet="text"},
                         {sheet="budget"},{tab=Destination.PLANS})
                     tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
                     tab==Destination.PLANS->PaymentsScreen(data,notifications,exact,::notifyPermission,::exactPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
                         {confirmReminder=true},{sheet="record-plan:${it.id}"},{sheet="plan:new"})
-                    tab==Destination.SETTINGS->SettingsScreen(theme,vm::changeTheme,{confirmDemo=true},{sheet="csv"},::notifyPermission,notifications)
+                    tab==Destination.SETTINGS->SettingsScreen({appearanceOpen=true},{confirmDemo=true},{sheet="csv"},::notifyPermission,notifications)
                 }
                 if(busy&&sheet==null)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
               }
@@ -276,12 +282,10 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
 }
 
-@Composable private fun SettingsScreen(theme:String,onTheme:(String)->Unit,onDemo:()->Unit,onCsv:()->Unit,onNotify:()->Unit,notifications:Boolean) {
+@Composable private fun SettingsScreen(onAppearance:()->Unit,onDemo:()->Unit,onCsv:()->Unit,onNotify:()->Unit,notifications:Boolean) {
     Column(Modifier.fillMaxSize().padding(horizontal=20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Subtitle("航小账 1.0")
-        Panel {Text("外观",style=MaterialTheme.typography.titleMedium)
-            listOf("system" to "跟随系统","light" to "浅色","dark" to "深色").forEach{(v,label)->Row(Modifier.fillMaxWidth().clickable{onTheme(v)},verticalAlignment=Alignment.CenterVertically){RadioButton(theme==v,{onTheme(v)});Text(label)}}
-        }
+        Panel { SettingsAction(Icons.Outlined.Palette,"外观",onAppearance) }
         Panel {Text("数据与提醒",style=MaterialTheme.typography.titleMedium)
             SettingsAction(Icons.Outlined.NotificationsNone,if(notifications)"通知已开启 · 管理通知" else "开启系统通知",onNotify)
             SettingsAction(Icons.Outlined.ImportExport,"CSV 导入与导出",onCsv)
