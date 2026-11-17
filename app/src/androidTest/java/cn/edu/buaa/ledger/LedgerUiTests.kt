@@ -6,6 +6,7 @@ import androidx.compose.ui.semantics.SemanticsActions
 import androidx.test.ext.junit.runners.AndroidJUnit4
 import androidx.test.core.app.ApplicationProvider
 import kotlinx.coroutines.runBlocking
+import kotlinx.coroutines.flow.first
 import org.junit.Rule
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -13,6 +14,73 @@ import org.junit.runner.RunWith
 @RunWith(AndroidJUnit4::class)
 class LedgerUiTests {
     @get:Rule val compose=createAndroidComposeRule<MainActivity>()
+
+    private fun awaitNavigation() {
+        compose.waitUntil(30000) {compose.onAllNodesWithTag("nav-BILLS").fetchSemanticsNodes().isNotEmpty()}
+        compose.waitUntil(30000) {compose.onAllNodesWithText("正在加载…").fetchSemanticsNodes().isEmpty()}
+    }
+
+    @Test fun navigationKeepsLabelsAlignedAndRecordRaised() {
+        awaitNavigation()
+        val tabs=listOf("BILLS","STATISTICS","PLANS","SETTINGS")
+        tabs.forEach { compose.onNodeWithTag("nav-$it").assertIsDisplayed() }
+        val labels=listOf("账单","统计","记账","计划","设置").map { label ->
+            compose.onAllNodesWithText(label,useUnmergedTree=true).fetchSemanticsNodes().last().boundsInRoot
+        }
+        labels.drop(1).forEach { org.junit.Assert.assertEquals(labels.first().top,it.top,1f) }
+        val button=compose.onNodeWithTag("primary-add",useUnmergedTree=true).fetchSemanticsNode().boundsInRoot
+        val nav=compose.onNodeWithTag("nav-BILLS").fetchSemanticsNode().boundsInRoot
+        org.junit.Assert.assertTrue("记账按钮应向上突出导航栏",button.top<nav.top)
+        compose.onNodeWithTag("nav-PLANS").performClick()
+        compose.onNodeWithText("添加计划").performScrollTo().performClick()
+        compose.onNodeWithText("添加缴费计划").assertIsDisplayed()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("primary-add",useUnmergedTree=true).performTouchInput { click(androidx.compose.ui.geometry.Offset(center.x, 4f)) }
+        compose.onNodeWithText("金额（元）").assertIsDisplayed()
+        compose.onNodeWithText("缴费项目").assertDoesNotExist()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("nav-SETTINGS").performClick()
+        compose.onNodeWithText("外观").assertIsDisplayed().performClick()
+        compose.onNodeWithText("主题色").assertIsDisplayed()
+        compose.onNodeWithText("深色").performClick()
+        compose.onNodeWithText("浅色").performClick()
+        compose.onNodeWithText("跟随系统").performClick()
+        compose.onNodeWithTag("appearance-back").performClick()
+        compose.onNodeWithText("CSV 导入与导出").performScrollTo().performClick()
+        compose.onNodeWithText("导入与导出").assertIsDisplayed()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("nav-STATISTICS").performClick()
+        compose.onNodeWithText("支出构成").assertExists()
+        compose.onNodeWithTag("nav-BILLS").performClick()
+        compose.onNodeWithTag("bills-list").performScrollToNode(hasText("账单明细"))
+        compose.onNodeWithText("账单明细").assertIsDisplayed()
+        compose.onNodeWithText("查看全部").assertDoesNotExist()
+    }
+
+    @Test fun appearanceSelectionPersistsAcrossRecreation() {
+        awaitNavigation()
+        val app=ApplicationProvider.getApplicationContext<LedgerApp>()
+        val store=cn.edu.buaa.ledger.data.AppearanceStore(app)
+        val originalMode=runBlocking { store.theme.first() }
+        val originalColor=runBlocking { store.themeColor.first() }
+        try {
+            compose.onNodeWithTag("nav-SETTINGS").performClick()
+            compose.onNodeWithText("外观").performClick()
+            compose.onNodeWithTag("nav-BILLS").assertDoesNotExist()
+            compose.onNodeWithTag("theme-color-purple").performClick()
+            compose.onNodeWithTag("theme-mode-dark").performScrollTo().performClick()
+            compose.waitUntil(10000) { runBlocking { store.themeColor.first()=="purple" && store.theme.first()=="dark" } }
+            compose.activityRule.scenario.recreate()
+            compose.onNodeWithTag("theme-color-purple").performScrollTo().assertIsSelected()
+            compose.onNodeWithTag("theme-mode-dark").performScrollTo().assertIsSelected()
+            androidx.test.espresso.Espresso.pressBack()
+            compose.onNodeWithTag("nav-SETTINGS").assertIsSelected()
+            compose.onNodeWithText("外观").performClick()
+            compose.onNodeWithTag("theme-color-blue").performClick()
+            compose.onNodeWithTag("theme-mode-light").performScrollTo().performClick()
+            compose.onNodeWithTag("theme-color-blue").performScrollTo().assertIsSelected()
+        } finally { runBlocking { store.setTheme(originalMode);store.setThemeColor(originalColor) } }
+    }
 
     @Test fun recordEditBudgetAndScreens() {
       val note="界面测试午餐-"+java.util.UUID.randomUUID().toString().take(8)
@@ -27,7 +95,8 @@ class LedgerUiTests {
         compose.onNodeWithText("备注").performScrollTo().performTextInput(note)
         compose.onNodeWithText("保存账目").performClick()
         compose.waitUntil(10000){compose.onAllNodesWithText("金额（元）").fetchSemanticsNodes().isEmpty()}
-        compose.onNodeWithText("账目",useUnmergedTree=true).performClick()
+        compose.onNodeWithTag("nav-BILLS").performClick()
+        compose.onNodeWithTag("bills-list").performScrollToNode(hasText(note))
         compose.onNodeWithText(note).assertExists()
         compose.onNodeWithText(note).performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.waitUntil(10000){compose.onAllNodesWithText("编辑账目").fetchSemanticsNodes().isNotEmpty()}
@@ -35,11 +104,12 @@ class LedgerUiTests {
         compose.onNodeWithText("金额（元）").performTextInput("8.50")
         compose.onNodeWithText("保存账目").performClick()
         compose.waitUntil(10000){compose.onAllNodesWithText("编辑账目").fetchSemanticsNodes().isEmpty()}
-        compose.onNodeWithText("统计",useUnmergedTree=true).performClick()
+        compose.onNodeWithTag("nav-STATISTICS").performClick()
         compose.onNodeWithText("支出构成").assertExists()
-        compose.onNodeWithText("缴费",useUnmergedTree=true).performClick()
-        compose.onNodeWithText("系统通知已开启").assertExists()
-        compose.onNodeWithText("账目",useUnmergedTree=true).performClick()
+        compose.onNodeWithTag("nav-PLANS").performClick()
+        compose.onNodeWithText("待缴计划",substring=true).assertExists()
+        compose.onNodeWithTag("nav-BILLS").performClick()
+        compose.onNodeWithTag("bills-list").performScrollToNode(hasText(note))
         compose.onNodeWithText(note).performScrollTo().performSemanticsAction(SemanticsActions.OnClick) { it() }
         compose.onNodeWithText("删除这笔账目").performScrollTo().performClick()
         compose.onNodeWithText("删除账目").performClick()

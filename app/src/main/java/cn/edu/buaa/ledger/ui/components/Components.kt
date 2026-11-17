@@ -12,6 +12,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.lerp
+import cn.edu.buaa.ledger.ui.theme.ThemeColor
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
@@ -23,20 +25,20 @@ import java.time.LocalDate
 
 /** Ordered cool/warm ramps; other is the soft final stop in each ramp. */
 fun categoryColor(code: String): Color = when(code) {
-    "food" -> Color(0xFF2454A6)
-    "shopping" -> Color(0xFF296BB2)
-    "transport" -> Color(0xFF2C80B9)
-    "study" -> Color(0xFF3295BE)
-    "bills" -> Color(0xFF46A8C3)
-    "medical" -> Color(0xFF65BACB)
-    "entertainment" -> Color(0xFF8ACCD5)
-    "other" -> Color(0xFFB6DFE2)
-    "allowance" -> Color(0xFFB94E38)
-    "scholarship" -> Color(0xFFCF713D)
-    "work" -> Color(0xFFE0964F)
-    "gift" -> Color(0xFFEABE7A)
-    "other_income" -> Color(0xFFF2DDB2)
-    else -> Color(0xFFB6DFE2)
+    "food" -> ThemeColor.BLUE.start
+    "shopping" -> lerp(ThemeColor.BLUE.start, ThemeColor.TEAL.start, .33f)
+    "transport" -> lerp(ThemeColor.BLUE.start, ThemeColor.TEAL.start, .67f)
+    "study" -> ThemeColor.TEAL.start
+    "bills" -> lerp(ThemeColor.TEAL.start, ThemeColor.TEAL.container, .25f)
+    "medical" -> lerp(ThemeColor.TEAL.start, ThemeColor.TEAL.container, .50f)
+    "entertainment" -> lerp(ThemeColor.TEAL.start, ThemeColor.TEAL.container, .75f)
+    "other" -> ThemeColor.TEAL.container
+    "allowance" -> ThemeColor.RED.start
+    "scholarship" -> ThemeColor.ORANGE.start
+    "work" -> lerp(ThemeColor.ORANGE.start, ThemeColor.ORANGE.container, .33f)
+    "gift" -> lerp(ThemeColor.ORANGE.start, ThemeColor.ORANGE.container, .67f)
+    "other_income" -> ThemeColor.ORANGE.container
+    else -> ThemeColor.TEAL.container
 }
 fun categoryIcon(code: String): ImageVector = when(code) {
     "food" -> Icons.Outlined.Restaurant; "shopping" -> Icons.Outlined.ShoppingBag

@@ -61,7 +61,7 @@ import java.util.UUID
     val context=LocalContext.current
     if(deleteConfirm && original!=null) AlertDialog(onDismissRequest={deleteConfirm=false},title={Text("删除这笔账目？")},text={Text("删除后预算、汇总与图表会重新计算。此操作无法撤销。")},
         confirmButton={TextButton({onDelete(original.id);deleteConfirm=false;onClose()}){Text("删除账目",color=MaterialTheme.colorScheme.error)}},dismissButton={TextButton({deleteConfirm=false}){Text("保留")}})
-    EditorFrame(if(original!=null)"编辑账目" else if(parsed!=null || draft!=null)"核对账目" else "记一笔",
+    EditorFrame(if(original!=null)"编辑账目" else if(parsed!=null || draft!=null)"核对账目" else "记账",
         if(parsed!=null || draft!=null)"从原文中提取的内容，需要你确认后才保存。" else "",busy,
         if(keepAdding&&original==null)"保存并继续" else "保存账目",onAction={
             val cents=try {LedgerRules.parseMoney(amount)} catch(e:IllegalArgumentException){amountError=e.message;return@EditorFrame}
