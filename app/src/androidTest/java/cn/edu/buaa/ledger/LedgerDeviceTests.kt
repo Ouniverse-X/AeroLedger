@@ -108,12 +108,11 @@ class LedgerDeviceTests {
     @Test fun realAlarmNotificationAndCancellation()=runBlocking {
         app.ensureInitialized()
         assertTrue("Grant notification permission before device tests",PaymentReminders.allowed(app))
-        assertTrue("Allow exact alarms before device tests",PaymentReminders.exactAllowed(app))
         val repo=app.repository;val manager=app.getSystemService(NotificationManager::class.java)
         val before=repo.dao.transactions().size
         val id=repo.savePlan(PaymentPlan(name="自动测试（示例）",amountCents=1,dueAt=System.currentTimeMillis()+2500))
         fun visible()=manager.activeNotifications.any{it.tag=="payment-$id"}
-        suspend fun waitDelivered(){withTimeout(20000){while(repo.dao.plan(id)!!.needsReminder)delay(200)}}
+        suspend fun waitDelivered(){withTimeout(90000){while(repo.dao.plan(id)!!.needsReminder)delay(200)}}
         suspend fun waitVisible(expected:Boolean){withTimeout(5000){while(visible()!=expected)delay(50)}}
         try {
             waitDelivered();waitVisible(true);assertTrue(visible())

@@ -60,7 +60,7 @@ ADB=/path/to/android-sdk/platform-tools/adb \
 ANDROID_SERIAL=emulator-5554 ./scripts/test-device.sh
 ```
 
-脚本会安装 debug 主包和测试包，并允许通知与精确提醒权限。使用专用模拟器；不要用存有个人账目的设备运行自动化测试。测试日志写入本地 `artifacts/tests/`，该目录不提交。
+脚本会安装 debug 主包和测试包，并允许通知权限。使用专用模拟器；不要用存有个人账目的设备运行自动化测试。测试日志写入本地 `artifacts/tests/`，该目录不提交。
 
 ## Modify the Application
 
@@ -89,7 +89,7 @@ Compose Preview 基线位于 `ui/DesignPreviews.kt`。产品结构和业务边�
 
 运行 `gradlew.bat :app:testDebugUnitTest :app:assembleDebug :app:assembleDebugAndroidTest :app:lintDebug`，并继续运行 `scripts/test-core.sh` 的 48 项核心断言。设备端测试类新增 `ReceiptDeviceTests` 与 `ReceiptUiTests`，使用动态生成的虚构图片，测试结束清理自身文件和账目；不要清空开发设备数据。
 
-离线验收在专用API35模拟器开启飞行模式并关闭Wi-Fi后执行。提醒测试需通知和精确闹钟权限，UI测试需唤醒并解锁模拟器。`ReceiptUiTests`同时覆盖真实Photo Picker、模拟选择结果、分享冷/热启动、候选勾选与重建。`CaptureDeviceTests`通过系统磁贴及真实授权对话框捕获测试APK中的虚构页面，测试APK不包含真实账单。测试会向快捷设置添加磁贴，结束后可自行移除。
+离线验收在专用API35模拟器开启飞行模式并关闭Wi-Fi后执行。提醒测试需通知权限，UI测试需唤醒并解锁模拟器。`ReceiptUiTests`同时覆盖真实Photo Picker、模拟选择结果、分享冷/热启动、候选勾选与重建。`CaptureDeviceTests`通过系统磁贴及真实授权对话框捕获测试APK中的虚构页面，测试APK不包含真实账单。测试会向快捷设置添加磁贴，结束后可自行移除。
 
 ### Responsibilities and extension points
 

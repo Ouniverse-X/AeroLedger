@@ -116,10 +116,9 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     val landscape=config.screenWidthDp>config.screenHeightDp && config.screenHeightDp<500
     val keyboard=LocalSoftwareKeyboardController.current
     var notifications by remember {mutableStateOf(PaymentReminders.allowed(context))}
-    var exact by remember {mutableStateOf(PaymentReminders.exactAllowed(context))}
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME){notifications=PaymentReminders.allowed(context);exact=PaymentReminders.exactAllowed(context)}}
+        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME){notifications=PaymentReminders.allowed(context)}}
         lifecycle.addObserver(observer);onDispose{lifecycle.removeObserver(observer)}
     }
     LaunchedEffect(Unit) {vm.messages.collect{snack.showSnackbar(it)}}
@@ -133,10 +132,6 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             context.getSharedPreferences("permissions",0).edit().putBoolean("asked",true).apply();permission.launch(Manifest.permission.POST_NOTIFICATIONS)
         } else runCatching{context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))}
             .onFailure{vm.messages.tryEmit("请在系统设置中允许航小账通知")}
-    }
-    fun exactPermission() {
-        if(Build.VERSION.SDK_INT>=31) runCatching {context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:${context.packageName}")))}
-            .onFailure{vm.messages.tryEmit("此设备未提供精确提醒设置，将使用弹性提醒")}
     }
     val importFile=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) vm.task {
         val result=withContext(Dispatchers.IO) {
@@ -200,13 +195,13 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
                     page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
-                    page=="管理权限"->PermissionsScreen(notifications,exact,::notifyPermission,::exactPermission)
+                    page=="管理权限"->PermissionsScreen(notifications,::notifyPermission)
                     page=="关于"->AboutScreen()
                     page=="数据导入与导出"->DataTransferScreen(busy,{importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
                     tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{sheet="text"},
                         {sheet="budget"},{tab=Destination.PLANS})
                     tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
-                    tab==Destination.PLANS->PaymentsScreen(data,notifications,exact,::notifyPermission,::exactPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
+                    tab==Destination.PLANS->PaymentsScreen(data,notifications,::notifyPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
                         {sheet="record-plan:${it.id}"},{sheet="plan:new"})
                     tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{settingsPage="关于"})
                 }
@@ -298,19 +293,14 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
 }
 
-@Composable private fun PermissionsScreen(notifications:Boolean,exact:Boolean,onNotify:()->Unit,onExact:()->Unit) {
+@Composable private fun PermissionsScreen(notifications:Boolean,onNotify:()->Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Panel {
             Text("通知",style=MaterialTheme.typography.titleMedium)
-            Subtitle("用于发送缴费到期提醒和截屏记账结果通知。")
+            Subtitle("用于截屏结果通知和缴费到期提醒。")
             SettingsAction(Icons.Outlined.NotificationsNone,if(notifications)"已开启 · 管理通知" else "未开启 · 允许通知",onNotify)
         }
-        Panel {
-            Text("精确提醒",style=MaterialTheme.typography.titleMedium)
-            Subtitle("用于按设定时间提醒缴费。未授权时使用弹性提醒，系统可能延迟。")
-            if(Build.VERSION.SDK_INT>=31) SettingsAction(Icons.Outlined.Alarm,if(exact)"已允许 · 管理精确提醒" else "未允许 · 设置精确提醒",onExact)
-            else Subtitle("当前系统无需单独授权。")
-        }
+
     }
 }
 

@@ -204,7 +204,7 @@ import java.time.format.DateTimeFormatter
 
 fun formatDue(at: Long) = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()))
 
-@Composable fun PaymentsScreen(data: LedgerData,notifications: Boolean,exact: Boolean,onPermission:()->Unit,onExact:()->Unit,
+@Composable fun PaymentsScreen(data: LedgerData,notifications: Boolean,onPermission:()->Unit,
     onEdit:(PaymentPlan)->Unit,onChange:(PaymentPlan)->Unit,onRecord:(PaymentPlan)->Unit,onAdd:()->Unit) {
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var confirm by remember { mutableStateOf<PaymentPlan?>(null) }
@@ -219,9 +219,7 @@ fun formatDue(at: Long) = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(Inst
                 Icon(if(notifications)Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,null,tint=MaterialTheme.colorScheme.primary)
                 Text(if(notifications)"系统通知已开启" else "系统通知未开启",style=MaterialTheme.typography.titleMedium)
             }
-            Subtitle(if(!notifications)"计划会保留在本机。允许通知后，未提醒的到期项目会补发。" else if(exact)"到期发送系统通知；已缴、取消或关闭后撤销。" else "当前使用弹性提醒，系统可能延迟。允许精确提醒后可提高提醒的准时性。")
             if(!notifications) PrimaryButton("开启系统通知",onClick=onPermission)
-            if(!exact) TextButton(onExact) { Text("允许精确提醒");Icon(Icons.Outlined.ChevronRight,null,Modifier.size(16.dp)) }
         } }
         item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) { Text("待缴计划 · ${pending.size} 项",style=MaterialTheme.typography.titleMedium);TextButton(onAdd) { Icon(Icons.Outlined.Add,null,Modifier.size(18.dp));Text("添加计划") } } }
         if(pending.isEmpty()) item { EmptyState("暂时没有待缴项目","点击“添加计划”新建缴费项目。",icon=Icons.Outlined.EventAvailable) }
