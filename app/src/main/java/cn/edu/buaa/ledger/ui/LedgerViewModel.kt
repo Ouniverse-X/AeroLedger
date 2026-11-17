@@ -56,7 +56,6 @@ class LedgerViewModel(application: Application, private val saved: SavedStateHan
     fun savePlan(plan: PaymentPlan, done: () -> Unit = {}) = task {
         repository.savePlan(plan); messages.emit(if(plan.status=="paid") "已缴并撤销提醒，未自动入账" else "计划已保存"); done()
     }
-    fun seedDemo() = task { val added = repository.seedDemo(); messages.emit(if (added) "校园示例已载入，所有记录均为虚构" else "示例已载入过，不会重复添加") }
     fun restoreReminders() { viewModelScope.launch { try { PaymentReminders.restore(app) } catch(e: Exception) { messages.emit("提醒恢复失败，请重新打开应用重试") } } }
     fun saveReview(review: ReviewEntity, done: () -> Unit) = task { repository.dao.saveReview(review); messages.emit("回顾已保存"); done() }
 }

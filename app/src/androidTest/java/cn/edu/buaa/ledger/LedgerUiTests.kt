@@ -46,7 +46,7 @@ class LedgerUiTests {
         compose.onNodeWithText("浅色").performClick()
         compose.onNodeWithText("跟随系统").performClick()
         compose.onNodeWithTag("appearance-back").performClick()
-        compose.onNodeWithText("CSV 导入与导出").performScrollTo().performClick()
+        compose.onNodeWithText("数据导入与导出").performScrollTo().performClick()
         compose.onNodeWithText("导入与导出").assertIsDisplayed()
         androidx.test.espresso.Espresso.pressBack()
         compose.onNodeWithTag("nav-STATISTICS").performClick()
@@ -55,6 +55,31 @@ class LedgerUiTests {
         compose.onNodeWithTag("bills-list").performScrollToNode(hasText("账单明细"))
         compose.onNodeWithText("账单明细").assertIsDisplayed()
         compose.onNodeWithText("查看全部").assertDoesNotExist()
+    }
+
+    @Test fun settingsSeparatesPermissionsDataAndAbout() {
+        awaitNavigation()
+        compose.onNodeWithTag("nav-SETTINGS").performClick()
+        compose.onNodeWithText("航小账 1.0").assertDoesNotExist()
+        compose.onNodeWithText("载入校园示例数据").assertDoesNotExist()
+        compose.onNodeWithText("数据存储").assertDoesNotExist()
+        compose.onNodeWithText("示例与开源参考").assertDoesNotExist()
+        compose.onNodeWithText("管理权限").performClick()
+        compose.onNodeWithText("通知").assertIsDisplayed()
+        compose.onNodeWithText("精确提醒").assertIsDisplayed()
+        compose.onNodeWithTag("nav-BILLS").assertDoesNotExist()
+        compose.activityRule.scenario.recreate()
+        compose.onNodeWithText("精确提醒").assertIsDisplayed()
+        compose.onNodeWithTag("settings-back").performClick()
+        compose.onNodeWithText("关于").performClick()
+        compose.onNodeWithText(BuildConfig.VERSION_NAME).assertIsDisplayed()
+        compose.onNodeWithText("数据与隐私").assertIsDisplayed()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithText("数据导入与导出").performClick()
+        compose.onNodeWithText("导出全部账目").assertIsDisplayed()
+        androidx.test.espresso.Espresso.pressBack()
+        compose.onNodeWithTag("nav-PLANS").performClick()
+        compose.onNodeWithText("创建 1 分钟通知验收计划").assertDoesNotExist()
     }
 
     @Test fun appearanceSelectionPersistsAcrossRecreation() {

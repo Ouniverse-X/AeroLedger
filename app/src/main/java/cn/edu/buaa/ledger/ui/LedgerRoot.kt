@@ -84,8 +84,8 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     val data by vm.data.collectAsStateWithLifecycle()
     val theme by vm.theme.collectAsStateWithLifecycle()
     val themeColor by vm.themeColor.collectAsStateWithLifecycle()
-    var appearanceOpen by rememberSaveable { mutableStateOf(false) }
-    BackHandler(appearanceOpen) { appearanceOpen=false }
+    var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
+    BackHandler(settingsPage != null) { settingsPage=null }
     val busy by vm.busy.collectAsStateWithLifecycle()
     val startupError by vm.startupError.collectAsStateWithLifecycle()
     val preview by vm.importPreview.collectAsStateWithLifecycle()
@@ -108,8 +108,6 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     var sheet by rememberSaveable {mutableStateOf<String?>(null)}
     var rawText by rememberSaveable {mutableStateOf("")}
     var exportAll by rememberSaveable {mutableStateOf(true)}
-    var confirmDemo by remember {mutableStateOf(false)}
-    var confirmReminder by remember {mutableStateOf(false)}
     val snack=remember{SnackbarHostState()}
     val context=LocalContext.current
     val config=LocalConfiguration.current
@@ -162,19 +160,19 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             topBar={
                 Surface(color=MaterialTheme.colorScheme.primary,contentColor=MaterialTheme.colorScheme.onPrimary) {
                     Box(Modifier.fillMaxWidth().statusBarsPadding().height(if(landscape)44.dp else 56.dp),contentAlignment=Alignment.Center) {
-                        if(appearanceOpen) IconButton({appearanceOpen=false},Modifier.align(Alignment.CenterStart).testTag("appearance-back")) { Icon(Icons.Outlined.ArrowBack,"返回设置") }
-                        Text(if(appearanceOpen)"外观" else tab.title,style=MaterialTheme.typography.titleLarge)
+                        if(settingsPage != null) IconButton({settingsPage=null},Modifier.align(Alignment.CenterStart).testTag(if(settingsPage=="外观")"appearance-back" else "settings-back")) { Icon(Icons.Outlined.ArrowBack,"返回设置") }
+                        Text(settingsPage ?: tab.title,style=MaterialTheme.typography.titleLarge)
                     }
                 }
             },
-            bottomBar={if(!landscape&&!appearanceOpen)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
+            bottomBar={if(!landscape&&settingsPage==null)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
             snackbarHost={SnackbarHost(snack)}
         ) {padding->
             // Let page content extend behind the raised button instead of reserving a blank strip.
-            val contentBottom=(padding.calculateBottomPadding()-if(landscape||appearanceOpen)0.dp else 18.dp).coerceAtLeast(0.dp)
+            val contentBottom=(padding.calculateBottomPadding()-if(landscape||settingsPage!=null)0.dp else 18.dp).coerceAtLeast(0.dp)
             Row(Modifier.padding(start=padding.calculateStartPadding(LocalLayoutDirection.current),
                 end=padding.calculateEndPadding(LocalLayoutDirection.current),top=padding.calculateTopPadding(),bottom=contentBottom).fillMaxSize()) {
-                if(landscape&&!appearanceOpen)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
+                if(landscape&&settingsPage==null)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
                     FilledIconButton(onClick={sheet="entry:new"},enabled=data.ready,
                         modifier=Modifier.size(48.dp).testTag("primary-add").semantics {contentDescription="记账"}) {Icon(Icons.Outlined.Add,null)}
                     Destination.entries.forEach { destination ->
@@ -188,24 +186,20 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
-                    appearanceOpen->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
+                    settingsPage=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
+                    settingsPage=="管理权限"->PermissionsScreen(notifications,exact,::notifyPermission,::exactPermission)
+                    settingsPage=="关于"->AboutScreen()
                     tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{sheet="csv"},{sheet="text"},
                         {sheet="budget"},{tab=Destination.PLANS})
                     tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
                     tab==Destination.PLANS->PaymentsScreen(data,notifications,exact,::notifyPermission,::exactPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
-                        {confirmReminder=true},{sheet="record-plan:${it.id}"},{sheet="plan:new"})
-                    tab==Destination.SETTINGS->SettingsScreen({appearanceOpen=true},{confirmDemo=true},{sheet="csv"},::notifyPermission,notifications)
+                        {sheet="record-plan:${it.id}"},{sheet="plan:new"})
+                    tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{sheet="csv"},{settingsPage="关于"})
                 }
                 if(busy&&sheet==null)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
               }
             }
         }
-        if(confirmDemo) AlertDialog(onDismissRequest={confirmDemo=false},icon={Icon(Icons.Outlined.School,null)},title={Text("载入校园示例数据")},
-            text={Text("添加 20 笔虚构记录，均标注“示例”，用于查看六个月的收支趋势。当前月支出 ¥205.40、收入 ¥2500.00。保留已有账目，仅可载入一次。")},
-            confirmButton={TextButton({vm.seedDemo();change(FilterSpec());confirmDemo=false}){Text("载入示例")}},dismissButton={TextButton({confirmDemo=false}){Text("返回")}})
-        if(confirmReminder) AlertDialog(onDismissRequest={confirmReminder=false},title={Text("创建通知验收计划")},text={Text("创建一条 1 分钟后到期的 ¥0.01 待缴示例。请开启系统通知，允许精确提醒后可更准确地验收。退出到桌面观察真实系统通知。")},
-            confirmButton={TextButton({vm.savePlan(PaymentPlan(name="通知验收（示例）",amountCents=1,dueAt=System.currentTimeMillis()+60_000));confirmReminder=false}){Text("创建计划")}},dismissButton={TextButton({confirmReminder=false}){Text("返回")}})
-
         if(sheet!=null&&data.ready) ModalBottomSheet(onDismissRequest={if(!busy)sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
             containerColor=MaterialTheme.colorScheme.surface,dragHandle={BottomSheetDefaults.DragHandle()}) {
             key(sheet) {
@@ -282,24 +276,44 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
 }
 
-@Composable private fun SettingsScreen(onAppearance:()->Unit,onDemo:()->Unit,onCsv:()->Unit,onNotify:()->Unit,notifications:Boolean) {
-    Column(Modifier.fillMaxSize().padding(horizontal=20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Subtitle("航小账 1.0")
+@Composable private fun SettingsScreen(onAppearance:()->Unit,onPermissions:()->Unit,onCsv:()->Unit,onAbout:()->Unit) {
+    Column(Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Panel { SettingsAction(Icons.Outlined.Palette,"外观",onAppearance) }
-        Panel {Text("数据与提醒",style=MaterialTheme.typography.titleMedium)
-            SettingsAction(Icons.Outlined.NotificationsNone,if(notifications)"通知已开启 · 管理通知" else "开启系统通知",onNotify)
-            SettingsAction(Icons.Outlined.ImportExport,"CSV 导入与导出",onCsv)
-            SettingsAction(Icons.Outlined.School,"载入校园示例数据",onDemo)
+        Panel { SettingsAction(Icons.Outlined.AdminPanelSettings,"管理权限",onPermissions) }
+        Panel { SettingsAction(Icons.Outlined.ImportExport,"数据导入与导出",onCsv) }
+        Panel { SettingsAction(Icons.Outlined.Info,"关于",onAbout) }
+    }
+}
+
+@Composable private fun PermissionsScreen(notifications:Boolean,exact:Boolean,onNotify:()->Unit,onExact:()->Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        Panel {
+            Text("通知",style=MaterialTheme.typography.titleMedium)
+            Subtitle("用于发送缴费到期提醒和截屏记账结果通知。")
+            SettingsAction(Icons.Outlined.NotificationsNone,if(notifications)"已开启 · 管理通知" else "未开启 · 允许通知",onNotify)
         }
-        Panel {Text("数据存储",style=MaterialTheme.typography.titleMedium)
-            Subtitle("账目、预算、计划和回顾均保存于本机，无需注册。卸载会删除本地数据；建议定期导出账目。CSV 不包含预算、计划和回顾。")
-            Subtitle("缴费计划不会自动入账。通知权限用于到期提醒，精确提醒授权用于准时送达，开机权限用于恢复计划；文件由系统选择器授权。系统强行停止后需重新打开应用恢复提醒。")
+        Panel {
+            Text("精确提醒",style=MaterialTheme.typography.titleMedium)
+            Subtitle("用于按设定时间提醒缴费。未授权时使用弹性提醒，系统可能延迟。")
+            if(Build.VERSION.SDK_INT>=31) SettingsAction(Icons.Outlined.Alarm,if(exact)"已允许 · 管理精确提醒" else "未允许 · 设置精确提醒",onExact)
+            else Subtitle("当前系统无需单独授权。")
         }
-        Panel {Text("示例与开源参考",style=MaterialTheme.typography.titleMedium)
-            Subtitle("所有示例记录均为项目自制虚构数据，不代表北航实际价格。应用不连接银行、支付账户或校园平台。消费回顾与文本录入均采用本地规则，无模型调用或费用。")
-            Subtitle("功能与架构参考 MoneyBook（MIT，AndersOnLin4）及 AutoAccounting（GPL-3.0，AutoAccountingOrg）。本应用独立实现，来源说明见项目文档。")
+    }
+}
+
+@Composable private fun AboutScreen() {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        Panel {
+            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
+                Text("版本",style=MaterialTheme.typography.bodyLarge)
+                Text(BuildConfig.VERSION_NAME,style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+            }
         }
-        Spacer(Modifier.height(24.dp))
+        Panel {
+            Text("数据与隐私",style=MaterialTheme.typography.titleMedium)
+            Subtitle("账目、预算、缴费计划和消费回顾保存在本机，图片识别在本机完成。")
+            Subtitle("卸载应用会删除本地数据。请提前导出需要保留的账目；CSV 不包含预算、缴费计划和消费回顾。")
+        }
     }
 }
 
