@@ -57,7 +57,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             for(position in 0..4) {
                 if(position==2) {
                     Box(Modifier.weight(1f).fillMaxHeight(),contentAlignment=Alignment.TopCenter) {
-                        Box(Modifier.size(64.dp).background(Color.White, CircleShape).padding(4.dp)) {
+                        Box(Modifier.size(64.dp).background(MaterialTheme.colorScheme.surface, CircleShape).padding(4.dp)) {
                             FilledIconButton(onClick=onRecord,enabled=ready,
                                 modifier=Modifier.fillMaxSize().testTag("primary-add").semantics {contentDescription="记账"}) {
                                 Icon(Icons.Outlined.Add,null,Modifier.size(28.dp))
@@ -165,7 +165,10 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             bottomBar={if(!landscape)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
             snackbarHost={SnackbarHost(snack)}
         ) {padding->
-            Row(Modifier.padding(padding).fillMaxSize()) {
+            // Let page content extend behind the raised button instead of reserving a blank strip.
+            val contentBottom=(padding.calculateBottomPadding()-if(landscape)0.dp else 18.dp).coerceAtLeast(0.dp)
+            Row(Modifier.padding(start=padding.calculateStartPadding(LocalLayoutDirection.current),
+                end=padding.calculateEndPadding(LocalLayoutDirection.current),top=padding.calculateTopPadding(),bottom=contentBottom).fillMaxSize()) {
                 if(landscape)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
                     FilledIconButton(onClick={sheet="entry:new"},enabled=data.ready,
                         modifier=Modifier.size(48.dp).testTag("primary-add").semantics {contentDescription="记账"}) {Icon(Icons.Outlined.Add,null)}
