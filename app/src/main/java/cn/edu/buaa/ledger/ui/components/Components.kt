@@ -23,13 +23,17 @@ import java.time.LocalDate
 
 fun categoryColor(code: String): Color = when(code) {
     "food" -> Color(0xFF2257B8); "shopping" -> Color(0xFF0F766E); "transport" -> Color(0xFF8B5CF6)
-    "study" -> Color(0xFFB45309); "bills" -> Color(0xFFC24168); "other" -> Color(0xFF64748B)
-    else -> Color(0xFF0F766E)
+    "study" -> Color(0xFF4338CA); "bills" -> Color(0xFF0369A1); "medical" -> Color(0xFF0E7490)
+    "entertainment" -> Color(0xFF7E22CE); "other" -> Color(0xFF64748B)
+    "allowance" -> Color(0xFFB45309); "scholarship" -> Color(0xFFA16207); "work" -> Color(0xFFC2410C)
+    "gift" -> Color(0xFFBE4055); "other_income" -> Color(0xFF926747)
+    else -> Color(0xFF64748B)
 }
 fun categoryIcon(code: String): ImageVector = when(code) {
     "food" -> Icons.Outlined.Restaurant; "shopping" -> Icons.Outlined.ShoppingBag
     "transport" -> Icons.Outlined.DirectionsTransit; "study" -> Icons.Outlined.MenuBook
-    "bills" -> Icons.Outlined.Bolt; "allowance" -> Icons.Outlined.AccountBalanceWallet
+    "medical" -> Icons.Outlined.LocalHospital; "entertainment" -> Icons.Outlined.SportsEsports
+    "gift" -> Icons.Outlined.CardGiftcard; "bills" -> Icons.Outlined.Home; "allowance" -> Icons.Outlined.AccountBalanceWallet
     "scholarship" -> Icons.Outlined.School; "work" -> Icons.Outlined.WorkOutline
     else -> Icons.Outlined.MoreHoriz
 }
@@ -81,7 +85,7 @@ private fun Color.luminanceValue() = red * .2126f + green * .7152f + blue * .072
         verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(12.dp)) {
         CategoryAvatar(item.categoryCode)
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(3.dp)) {
-            Text(categoryName(item.categoryCode), style = MaterialTheme.typography.titleMedium)
+            Text(item.customCategory.ifBlank { categoryName(item.categoryCode) }, style = MaterialTheme.typography.titleMedium)
             Text(item.note.ifBlank { LocalDate.ofEpochDay(item.dateEpochDay).toString() }, maxLines = 2,
                 overflow = TextOverflow.Ellipsis, style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
             if(item.sourceType == "text") Text("文本辅助录入", style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)

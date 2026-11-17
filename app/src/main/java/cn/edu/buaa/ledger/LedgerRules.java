@@ -36,8 +36,11 @@ public final class LedgerRules {
             LocalDate date = LocalDate.parse(e.date);
             if (!date.toString().equals(e.date) || date.getYear() < 1900 || date.getYear() > 2100) throw new IllegalArgumentException();
         } catch (Exception ex) { throw new IllegalArgumentException("日期必须为有效的 YYYY-MM-DD，范围为 1900～2100 年"); }
-        if (!Arrays.asList(e.isExpense() ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).contains(e.category))
+        if (!Arrays.asList(e.isExpense() ? EXPENSE_CATEGORIES : INCOME_CATEGORIES).contains(cn.edu.buaa.ledger.domain.CategoryCatalog.normalize(e.category, e.type)))
             throw new IllegalArgumentException("类别与收支类型不匹配");
+        if (e.customCategory == null || e.customCategory.length() > 20 ||
+            (!e.customCategory.isEmpty() && !"其他".equals(cn.edu.buaa.ledger.domain.CategoryCatalog.normalize(e.category, e.type))))
+            throw new IllegalArgumentException("自填分类仅限其他，最多 20 字");
         if (e.note == null || e.note.length() > 200) throw new IllegalArgumentException("备注最多 200 字");
     }
 

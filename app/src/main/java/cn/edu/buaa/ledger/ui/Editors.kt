@@ -45,9 +45,10 @@ import java.util.UUID
     var date by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.date) }
     var type by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.type) }
     var category by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.category) }
+    var customCategory by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.customCategory) }
     var note by rememberSaveable(draft?.id, original?.id) { mutableStateOf(initial.note) }
-    LaunchedEffect(entryId, amount, date, type, category, note) {
-        if (draft != null) onDraftChange(draft.copy(amount=amount, date=date, type=type, category=category, note=note))
+    LaunchedEffect(entryId, amount, date, type, category, note, customCategory) {
+        if (draft != null) onDraftChange(draft.copy(amount=amount, date=date, type=type, category=category, note=note, customCategory=if(category in listOf("other", "other_income")) customCategory.trim() else ""))
     }
     var amountError by rememberSaveable { mutableStateOf<String?>(null) }
     var dateError by rememberSaveable { mutableStateOf<String?>(null) }
@@ -63,7 +64,8 @@ import java.util.UUID
             val day=try {LocalDate.parse(date).also {require(it.year in 1900..2100)}} catch(e:Exception){dateError="请选择有效日期，范围为 1900～2100 年";return@EditorFrame}
             val entity=TransactionEntity(entryId,type,cents,day.toEpochDay(),category,note,
                 initial.source,initial.sourceText,
-                createdAt=original?.createdAt?:System.currentTimeMillis())
+                createdAt=original?.createdAt?:System.currentTimeMillis(),
+                customCategory=if(category in listOf("other", "other_income")) customCategory.trim() else "")
             onSave(entity) { if(keepAdding&&original==null&&draft==null){entryId=UUID.randomUUID().toString();amount="";note="";amountError=null} else onClose() }
         }) {
         draft?.prompts?.forEach { FieldError(it) }
@@ -100,6 +102,9 @@ import java.util.UUID
                 repeat(3-row.size){Spacer(Modifier.weight(1f))}
             } }
         }
+        if(category in listOf("other", "other_income")) OutlinedTextField(customCategory,{customCategory=it.take(20)},
+            Modifier.fillMaxWidth(),label={Text("具体分类（可选）")},placeholder={Text("例如：社团活动")},
+            supportingText={Text("不填写则为其他，统计统一归入其他")},singleLine=true,shape=RoundedCornerShape(14.dp))
         OutlinedTextField(date,{date=it.take(10);dateError=null},Modifier.fillMaxWidth(),label={Text("日期 YYYY-MM-DD")},singleLine=true,
             placeholder={Text(if(parsed!=null)"原文日期不明确，请选择" else "选择日期")},isError=dateError!=null,
             supportingText={if(dateError!=null)Text(dateError!!)},shape=RoundedCornerShape(14.dp),trailingIcon={IconButton({

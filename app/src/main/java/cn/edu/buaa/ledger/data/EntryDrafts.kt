@@ -16,7 +16,7 @@ object EntryDrafts {
             id = original.id, amount = LedgerRules.money(original.amountCents),
             date = LocalDate.ofEpochDay(original.dateEpochDay).toString(), type = original.type,
             category = original.categoryCode, note = original.note,
-            source = original.sourceType, sourceText = original.sourceText
+            source = original.sourceType, sourceText = original.sourceText, customCategory = original.customCategory
         )
         if (image != null) return image
         return EntryDraft(

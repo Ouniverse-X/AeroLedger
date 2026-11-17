@@ -202,7 +202,7 @@ import java.util.UUID
         PrimaryButton("选择文件并预览导入",!busy,onClick=onImport)
         OutlinedButton(onAll,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Icon(Icons.Outlined.FileDownload,null);Spacer(Modifier.width(8.dp));Text("导出全部账目")}
         OutlinedButton(onFiltered,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Text("导出当前筛选账目")}
-        Panel {Text("V1 文件格式",style=MaterialTheme.typography.titleMedium);Text("id,type,amount,date,category,note",style=MaterialTheme.typography.bodyMedium);Subtitle("type：expense / income\namount：元，正数，最多两位小数\ndate：YYYY-MM-DD\ncategory：应用预设类别\nid：1～80 位字母、数字、短横线或下划线\n备注最多 200 字，最多 10000 条、2 MB。")}
+        Panel {Text("CSV 文件格式",style=MaterialTheme.typography.titleMedium);Text("id,type,amount,date,category,note,customCategory",style=MaterialTheme.typography.bodyMedium);Subtitle("type：expense / income\namount：元，正数，最多两位小数\ndate：YYYY-MM-DD\ncategory：应用预设类别\nid：1～80 位字母、数字、短横线或下划线\n兼容旧版六列文件；customCategory 为其他的自填名称，最多 20 字。\n备注最多 200 字，最多 10000 条、2 MB。")}
         Spacer(Modifier.height(12.dp))
     }
 }
@@ -218,7 +218,7 @@ import java.util.UUID
         Subtitle("确定重复会跳过且不覆盖。以下展示前 100 条，最终按全部 ${preview.rows.size} 条执行。")
         preview.rows.take(100).forEach{row->Panel{
             Tag("第 ${row.ordinal} 条 · ${when(row.state){"valid"->"可导入";"duplicate"->"重复";"suspicious"->"需核对";else->"无效"}}",if(row.state=="invalid")MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-            row.entry?.let{e->Text("${categoryName(e.categoryCode)} · ${if(e.type=="income")"收入" else "支出"} ¥${e.amountCents.money()}",style=MaterialTheme.typography.titleMedium);Subtitle("${LocalDate.ofEpochDay(e.dateEpochDay)} · ${e.note}")}
+            row.entry?.let{e->Text("${e.customCategory.ifBlank { categoryName(e.categoryCode) }} · ${if(e.type=="income")"收入" else "支出"} ¥${e.amountCents.money()}",style=MaterialTheme.typography.titleMedium);Subtitle("${LocalDate.ofEpochDay(e.dateEpochDay)} · ${e.note}")}
             if(row.raw.isNotBlank())Subtitle(row.raw.take(220))
             Subtitle(row.message)
         }}

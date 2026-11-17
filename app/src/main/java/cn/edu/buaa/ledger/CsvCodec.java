@@ -7,12 +7,13 @@ import java.util.List;
 /** RFC 4180-style quoting, including commas, quotes, CRLF and multiline notes. */
 public final class CsvCodec {
     public static final List<String> HEADER = Arrays.asList("id", "type", "amount", "date", "category", "note");
+    public static final List<String> EXTENDED_HEADER = Arrays.asList("id", "type", "amount", "date", "category", "note", "customCategory");
     private CsvCodec() { }
 
     public static String encode(List<Entry> entries) {
-        StringBuilder out = new StringBuilder("\uFEFFid,type,amount,date,category,note\r\n");
+        StringBuilder out = new StringBuilder("\uFEFFid,type,amount,date,category,note,customCategory\r\n");
         for (Entry e : entries) {
-            String[] fields = {e.id, e.type, LedgerRules.money(e.cents), e.date, e.category, e.note};
+            String[] fields = {e.id, e.type, LedgerRules.money(e.cents), e.date, cn.edu.buaa.ledger.domain.CategoryCatalog.normalize(e.category, e.type), e.note, e.customCategory};
             for (int i = 0; i < fields.length; i++) {
                 if (i > 0) out.append(',');
                 out.append('"').append(fields[i].replace("\"", "\"\"")).append('"');
@@ -52,14 +53,14 @@ public final class CsvCodec {
         if (quoted) throw new IllegalArgumentException("CSV 引号未闭合，文件未导入");
         if (field.length() > 0 || !row.isEmpty() || afterQuote) { row.add(field.toString()); rows.add(row); }
         if (rows.size() > 10001) throw new IllegalArgumentException("一次最多导入 10000 条账目");
-        if (rows.isEmpty() || !rows.get(0).equals(HEADER))
+        if (rows.isEmpty() || (!rows.get(0).equals(HEADER) && !rows.get(0).equals(EXTENDED_HEADER)))
             throw new IllegalArgumentException("表头应为 id,type,amount,date,category,note（顺序固定）");
         return rows;
     }
 
     public static Entry decodeRow(List<String> row) {
-        if (row.size() != 6) throw new IllegalArgumentException("列数应为 6");
-        Entry e = new Entry(row.get(0), row.get(1), LedgerRules.parseMoney(row.get(2)), row.get(3), row.get(4), row.get(5));
+        if (row.size() != 6 && row.size() != 7) throw new IllegalArgumentException("列数应为 6 或 7");
+        Entry e = new Entry(row.get(0), row.get(1), LedgerRules.parseMoney(row.get(2)), row.get(3), cn.edu.buaa.ledger.domain.CategoryCatalog.normalize(row.get(4), row.get(1)), row.get(5), row.size() == 7 ? row.get(6) : "");
         LedgerRules.validate(e);
         return e;
     }

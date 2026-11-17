@@ -10,18 +10,18 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.sp
 
 val CampusBlue = Color(0xFF2257B8)
-val IncomeGreen = Color(0xFF0F766E)
+val IncomeWarm = Color(0xFFB45309)
 val ExpenseBlue = Color(0xFF2257B8)
 private val Light = lightColorScheme(primary = CampusBlue, onPrimary = Color.White,
     primaryContainer = Color(0xFFE7EEFC), onPrimaryContainer = Color(0xFF194080),
-    secondary = IncomeGreen, secondaryContainer = Color(0xFFE2F2ED), onSecondaryContainer = Color(0xFF07564F),
+    secondary = IncomeWarm, secondaryContainer = Color(0xFFFFEDD5), onSecondaryContainer = Color(0xFF7C2D12),
     background = Color(0xFFF5F7FB), onBackground = Color(0xFF172033),
     surface = Color.White, onSurface = Color(0xFF172033), surfaceVariant = Color(0xFFEEF2F8),
     onSurfaceVariant = Color(0xFF526176), outline = Color(0xFF758197), outlineVariant = Color(0xFFE2E8F0),
     error = Color(0xFFB42318), errorContainer = Color(0xFFFDECE9))
 private val Dark = darkColorScheme(primary = Color(0xFF96B8FF), onPrimary = Color(0xFF102D61),
     primaryContainer = Color(0xFF203C69), onPrimaryContainer = Color(0xFFD6E4FF),
-    secondary = Color(0xFF6AD4BD), secondaryContainer = Color(0xFF173D3B), onSecondaryContainer = Color(0xFFA9F0DF),
+    secondary = Color(0xFFFFBD89), secondaryContainer = Color(0xFF52311D), onSecondaryContainer = Color(0xFFFFDCC0),
     background = Color(0xFF101827), onBackground = Color(0xFFF1F5F9),
     surface = Color(0xFF1A2538), onSurface = Color(0xFFF1F5F9), surfaceVariant = Color(0xFF253248),
     onSurfaceVariant = Color(0xFFB6C2D2), outline = Color(0xFF8A98B0), outlineVariant = Color(0xFF314058),
