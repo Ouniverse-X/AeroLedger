@@ -14,6 +14,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
@@ -72,69 +73,21 @@ import java.time.format.DateTimeFormatter
     }
 }
 
-@Composable fun Overview(data: LedgerData, filter: FilterSpec, change: (FilterSpec)->Unit, onBudget:()->Unit,
-    onEntry:(TransactionEntity)->Unit, onAll:()->Unit, onPayments:()->Unit, onDemo:()->Unit) {
-    val today = rememberDeviceDate()
-    val monthEntries=data.monthEntries(filter.month); val total=monthEntries.totals()
-    val compact=LocalConfiguration.current.screenHeightDp<500
-    LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        item { MonthPicker(filter,change,latestDate=today) }
-        item {
-          Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-            Surface(modifier=if(compact)Modifier.weight(1f) else Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),color=Color.Transparent) {
-                Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF2257B8),Color(0xFF153F86)))).padding(if(compact)16.dp else 24.dp),verticalArrangement=Arrangement.spacedBy(if(compact)8.dp else 14.dp)) {
-                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
-                        Text("本月支出",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyLarge)
-                        Icon(Icons.Outlined.FlightTakeoff,null,tint=Color(0xFFBCD3FF),modifier=Modifier.size(25.dp))
-                    }
-                    Money(total.expense,Modifier.fillMaxWidth(),size=if(compact)30 else 38,color=Color.White)
-                    if(!compact)Spacer(Modifier.height(4.dp))
-                    HorizontalDivider(color=Color.White.copy(alpha=.18f))
-                    Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                            Text("本月收入",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyMedium)
-                            Money(total.income,Modifier.fillMaxWidth(),size=22,color=Color.White)
-                        }
-                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
-                            Text("收支结余",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyMedium)
-                            Money(total.balance,Modifier.fillMaxWidth(),size=22,color=Color.White)
-                        }
-                    }
-                }
-            }
-            if(compact)Box(Modifier.weight(1f)){BudgetCard(data.budget(filter.month),total.expense,onBudget)}
-          }
-        }
-        if(!compact)item { BudgetCard(data.budget(filter.month),total.expense,onBudget) }
-        val pending=data.plans.filter { it.status=="pending" }.sortedBy { it.dueAt }
-        if(pending.isNotEmpty()) item {
-            val p=pending.first()
-            Panel(Modifier.clickable(onClick=onPayments)) {
-                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                    Icon(Icons.Outlined.NotificationsNone,null,tint=MaterialTheme.colorScheme.primary)
-                    Column(Modifier.weight(1f)) { Text("${pending.size} 项待缴",style=MaterialTheme.typography.titleMedium); Subtitle("${p.name} · ${formatDue(p.dueAt)}") }
-                    Icon(Icons.Outlined.ChevronRight,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
-                }
-            }
-        }
-        item { SectionHeader("最近账目","查看全部",onAll) }
-        if(monthEntries.isEmpty()) item { EmptyState("本月暂无账目","","载入校园示例",onDemo) }
-        else item { Panel {
-            monthEntries.take(5).forEachIndexed { i,e -> if(i>0) HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant.copy(alpha=.55f)); EntryRow(e) {onEntry(e)} }
-        } }
-    }
+@OptIn(ExperimentalLayoutApi::class)
+@Composable fun Filters(filter: FilterSpec, change: (FilterSpec)->Unit, latestDate: LocalDate? = null) {
+    MonthPicker(filter,change,latestDate)
+    EntryFilters(filter,change)
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun Filters(filter: FilterSpec, change: (FilterSpec)->Unit) {
+@Composable private fun EntryFilters(filter: FilterSpec, change: (FilterSpec)->Unit, latestDate: LocalDate? = null) {
     val context=LocalContext.current
     var expanded by remember { mutableStateOf(false) }
-    MonthPicker(filter,change)
     FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp),verticalArrangement=Arrangement.spacedBy(4.dp)) {
         LedgerChip(filter.day==null,{change(filter.copy(day=null))},label={Text("整月")},leadingIcon={Icon(Icons.Outlined.DateRange,null,Modifier.size(16.dp))})
         LedgerChip(filter.day!=null,{
             val day=filter.day ?: filter.month.atDay(1)
-            DatePickerDialog(context,{_,y,m,d->val date=LocalDate.of(y,m+1,d);change(filter.copy(month=YearMonth.from(date),day=date))},day.year,day.monthValue-1,day.dayOfMonth).show()
+            DatePickerDialog(context,{_,y,m,d->val date=LocalDate.of(y,m+1,d);change(filter.copy(month=YearMonth.from(date),day=date))},day.year,day.monthValue-1,day.dayOfMonth).apply { latestDate?.let { datePicker.maxDate=it.atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() } }.show()
         },label={Text(filter.day?.let{"${it.monthValue}月${it.dayOfMonth}日"}?:"按日")})
         Box {
             LedgerChip(filter.category!=null,{expanded=true},label={Text(filter.category?.let(::categoryName)?:"全部类别")},trailingIcon={Icon(Icons.Outlined.ExpandMore,null,Modifier.size(16.dp))})
@@ -153,11 +106,54 @@ import java.time.format.DateTimeFormatter
     }
 }
 
-@Composable fun EntriesScreen(data: LedgerData,filter: FilterSpec,change:(FilterSpec)->Unit,onEntry:(TransactionEntity)->Unit,onCsv:()->Unit,onText:()->Unit) {
+@Composable fun BillsScreen(data: LedgerData,filter: FilterSpec,change:(FilterSpec)->Unit,onEntry:(TransactionEntity)->Unit,onCsv:()->Unit,onText:()->Unit,
+    onBudget:()->Unit,onPlans:()->Unit) {
+    val today=rememberDeviceDate()
+    val monthTotal=data.monthEntries(filter.month).totals()
+    val compact=LocalConfiguration.current.screenHeightDp<500
     val entries=filter.select(data.entries);val total=entries.totals()
     var limit by rememberSaveable(filter) { mutableIntStateOf(50) }
-    LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        item { Column { Filters(filter,change) } }
+    LazyColumn(modifier=Modifier.testTag("bills-list"),contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        item { MonthPicker(filter,change,latestDate=today) }
+        item {
+          Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+            Surface(modifier=if(compact)Modifier.weight(1f) else Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),color=Color.Transparent) {
+                Column(Modifier.fillMaxWidth().background(Brush.linearGradient(listOf(Color(0xFF2257B8),Color(0xFF153F86)))).padding(if(compact)16.dp else 24.dp),verticalArrangement=Arrangement.spacedBy(if(compact)8.dp else 14.dp)) {
+                    Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.SpaceBetween) {
+                        Text("本月支出",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyLarge)
+                        Icon(Icons.Outlined.FlightTakeoff,null,tint=Color(0xFFBCD3FF),modifier=Modifier.size(25.dp))
+                    }
+                    Money(monthTotal.expense,Modifier.fillMaxWidth(),size=if(compact)30 else 38,color=Color.White)
+                    if(!compact)Spacer(Modifier.height(4.dp))
+                    HorizontalDivider(color=Color.White.copy(alpha=.18f))
+                    Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                            Text("本月收入",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyMedium)
+                            Money(monthTotal.income,Modifier.fillMaxWidth(),size=22,color=Color.White)
+                        }
+                        Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(5.dp)) {
+                            Text("收支结余",color=Color(0xFFD6E4FF),style=MaterialTheme.typography.bodyMedium)
+                            Money(monthTotal.balance,Modifier.fillMaxWidth(),size=22,color=Color.White)
+                        }
+                    }
+                }
+            }
+            if(compact)Box(Modifier.weight(1f)){BudgetCard(data.budget(filter.month),monthTotal.expense,onBudget)}
+          }
+        }
+        if(!compact)item { BudgetCard(data.budget(filter.month),monthTotal.expense,onBudget) }
+        val pending=data.plans.filter {it.status=="pending"}.sortedBy {it.dueAt}
+        if(pending.isNotEmpty()) item {
+            Panel(Modifier.clickable(onClick=onPlans)) {
+                Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
+                    Icon(Icons.Outlined.NotificationsNone,null,tint=MaterialTheme.colorScheme.primary)
+                    Column(Modifier.weight(1f)) { Text("${pending.size} 项待缴",style=MaterialTheme.typography.titleMedium); Subtitle("${pending.first().name} · ${formatDue(pending.first().dueAt)}") }
+                    Icon(Icons.Outlined.ChevronRight,null,tint=MaterialTheme.colorScheme.onSurfaceVariant)
+                }
+            }
+        }
+        item { Text("账单明细",style=MaterialTheme.typography.titleMedium) }
+        item { Column { EntryFilters(filter,change,latestDate=today) } }
         item { Panel {
             Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
                 Column(Modifier.weight(1f)) { Subtitle("筛选支出");Money(total.expense,Modifier.fillMaxWidth(),size=23) }
@@ -170,7 +166,7 @@ import java.time.format.DateTimeFormatter
             FilledTonalButton(onText,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.AutoAwesome,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("文本记账") }
             OutlinedButton(onCsv,modifier=Modifier.weight(1f).heightIn(min=48.dp),shape=RoundedCornerShape(12.dp)) { Icon(Icons.Outlined.ImportExport,null,Modifier.size(18.dp));Spacer(Modifier.width(6.dp));Text("导入导出") }
         } }
-        if(entries.isEmpty()) item { EmptyState("没有符合条件的账目","试试调整日期或类别，也可以新记一笔。") }
+        if(entries.isEmpty()) item { EmptyState("暂无符合条件的账单","可调整筛选，或点击下方“记账”。") }
         entries.take(limit).groupBy { it.dateEpochDay }.forEach { (date,rows) ->
             item(key="date-$date") {
                 val t=entries.filter {it.dateEpochDay==date}.totals()
@@ -207,7 +203,7 @@ import java.time.format.DateTimeFormatter
 fun formatDue(at: Long) = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(Instant.ofEpochMilli(at).atZone(ZoneId.systemDefault()))
 
 @Composable fun PaymentsScreen(data: LedgerData,notifications: Boolean,exact: Boolean,onPermission:()->Unit,onExact:()->Unit,
-    onEdit:(PaymentPlan)->Unit,onChange:(PaymentPlan)->Unit,onDemo:()->Unit,onRecord:(PaymentPlan)->Unit) {
+    onEdit:(PaymentPlan)->Unit,onChange:(PaymentPlan)->Unit,onDemo:()->Unit,onRecord:(PaymentPlan)->Unit,onAdd:()->Unit) {
     var showHistory by rememberSaveable { mutableStateOf(false) }
     var confirm by remember { mutableStateOf<PaymentPlan?>(null) }
     val pending=data.plans.filter {it.status=="pending"}.sortedBy{it.dueAt}
@@ -225,7 +221,7 @@ fun formatDue(at: Long) = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(Inst
             if(!notifications) PrimaryButton("开启系统通知",onClick=onPermission)
             if(!exact) TextButton(onExact) { Text("允许精确提醒");Icon(Icons.Outlined.ChevronRight,null,Modifier.size(16.dp)) }
         } }
-        item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) { Text("待缴计划",style=MaterialTheme.typography.titleLarge);Tag("${pending.size} 项") } }
+        item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) { Text("待缴计划 · ${pending.size} 项",style=MaterialTheme.typography.titleMedium);TextButton(onAdd) { Icon(Icons.Outlined.Add,null,Modifier.size(18.dp));Text("添加计划") } } }
         if(pending.isEmpty()) item { EmptyState("暂时没有待缴项目","点击“添加计划”新建缴费项目。",icon=Icons.Outlined.EventAvailable) }
         items(pending,key={it.id}) { plan -> PaymentCard(plan,onEdit,onChange,{confirm=it},onRecord,notifications) }
         if(history.isNotEmpty()) {

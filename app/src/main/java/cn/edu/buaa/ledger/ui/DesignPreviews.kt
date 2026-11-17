@@ -18,10 +18,10 @@ private fun designData(): LedgerData {
         TransactionEntity("4","income",200000,m.atDay(1).toEpochDay(),"allowance","生活费（示例）"))
     return LedgerData(entries,listOf(BudgetEntity("2026-11",150000)),ready=true)
 }
-@Preview(name="总览 · 浅色",widthDp=411,heightDp=950,showBackground=true)
-@Composable private fun OverviewLightPreview() {LedgerTheme("light"){Surface {Overview(designData(),FilterSpec(YearMonth.of(2026,11)),{}, {}, {}, {}, {}, {})}}}
-@Preview(name="总览 · 深色",widthDp=411,heightDp=950,showBackground=true)
-@Composable private fun OverviewDarkPreview() {LedgerTheme("dark"){Surface {Overview(designData(),FilterSpec(YearMonth.of(2026,11)),{}, {}, {}, {}, {}, {})}}}
+@Preview(name="账单 · 浅色",widthDp=411,heightDp=950,showBackground=true)
+@Composable private fun BillsLightPreview() {LedgerTheme("light"){Surface {BillsScreen(designData(),FilterSpec(YearMonth.of(2026,11)),{}, {}, {}, {}, {}, {})}}}
+@Preview(name="账单 · 深色",widthDp=411,heightDp=950,showBackground=true)
+@Composable private fun BillsDarkPreview() {LedgerTheme("dark"){Surface {BillsScreen(designData(),FilterSpec(YearMonth.of(2026,11)),{}, {}, {}, {}, {}, {})}}}
 @Preview(name="统计 · 浅色",widthDp=411,heightDp=1100,showBackground=true)
 @Composable private fun StatsPreview() {LedgerTheme("light"){Surface {StatisticsScreen(designData(),FilterSpec(YearMonth.of(2026,11)),{}, {}, {})}}}
 @Preview(name="记账 · 浅色",widthDp=411,heightDp=950,showBackground=true)

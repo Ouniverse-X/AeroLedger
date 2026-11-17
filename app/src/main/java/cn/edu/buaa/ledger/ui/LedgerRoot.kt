@@ -42,6 +42,39 @@ import java.nio.charset.StandardCharsets
 import java.time.*
 import java.util.UUID
 
+private enum class Destination(val title: String, val icon: androidx.compose.ui.graphics.vector.ImageVector) {
+    BILLS("账单", Icons.Outlined.ReceiptLong),
+    STATISTICS("统计", Icons.Outlined.DonutLarge),
+    PLANS("计划", Icons.Outlined.EventNote),
+    SETTINGS("设置", Icons.Outlined.Settings)
+}
+
+@Composable private fun LedgerBottomBar(selected: Destination, ready: Boolean, onSelect: (Destination)->Unit, onRecord: ()->Unit) {
+    Box(Modifier.fillMaxWidth()) {
+        Box(Modifier.matchParentSize().padding(top=18.dp).background(MaterialTheme.colorScheme.surface))
+        Row(Modifier.fillMaxWidth().navigationBarsPadding().height(98.dp),verticalAlignment=Alignment.Bottom) {
+            for(position in 0..4) {
+                if(position==2) {
+                    Box(Modifier.weight(1f).fillMaxHeight(),contentAlignment=Alignment.TopCenter) {
+                        FilledIconButton(onClick=onRecord,enabled=ready,
+                            modifier=Modifier.size(56.dp).testTag("primary-add").semantics {contentDescription="记账"}) {
+                            Icon(Icons.Outlined.Add,null,Modifier.size(28.dp))
+                        }
+                        Text("记账",Modifier.align(Alignment.BottomCenter).padding(bottom=16.dp),style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
+                    }
+                } else {
+                    val destination=Destination.entries[if(position<2)position else position-1]
+                    NavigationBarItem(selected=selected==destination,onClick={onSelect(destination)},
+                        modifier=Modifier.height(80.dp).testTag("nav-${destination.name}"),
+                        icon={Icon(destination.icon,null)},label={Text(destination.title)},
+                        colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,
+                            indicatorColor=MaterialTheme.colorScheme.primaryContainer))
+                }
+            }
+        }
+    }
+}
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun LedgerRoot(vm:LedgerViewModel,openedPlan:Long?,clearPlan:()->Unit,onDark:(Boolean)->Unit) {
     val data by vm.data.collectAsStateWithLifecycle()
@@ -51,7 +84,7 @@ import java.util.UUID
     val preview by vm.importPreview.collectAsStateWithLifecycle()
     val dark=theme=="dark"||theme=="system"&&isSystemInDarkTheme()
     SideEffect {onDark(dark)}
-    var tab by rememberSaveable {mutableIntStateOf(0)}
+    var tab by rememberSaveable {mutableStateOf(Destination.BILLS)}
     var filter by remember {mutableStateOf(vm.filter)}
     fun change(next:FilterSpec) {filter=next;vm.filter=next}
     val today = rememberDeviceDate()
@@ -61,7 +94,7 @@ import java.util.UUID
             change(filter.copy(month=YearMonth.from(today),day=null))
         }
         lastToday = today
-        if (tab == 0 && filter.month > YearMonth.from(today)) {
+        if (tab == Destination.BILLS && filter.month > YearMonth.from(today)) {
             change(filter.copy(month=EntryDates.homeMonth(filter.month,today),day=null))
         }
     }
@@ -84,7 +117,7 @@ import java.util.UUID
     }
     LaunchedEffect(Unit) {vm.messages.collect{snack.showSnackbar(it)}}
     LaunchedEffect(openedPlan,data.ready) {
-        if(openedPlan!=null&&data.ready) {tab=3;if(data.plans.any{it.id==openedPlan})sheet="plan:$openedPlan";clearPlan()}
+        if(openedPlan!=null&&data.ready) {tab=Destination.PLANS;if(data.plans.any{it.id==openedPlan})sheet="plan:$openedPlan";clearPlan()}
     }
     val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {notifications=PaymentReminders.allowed(context);vm.restoreReminders()}
     fun notifyPermission() {
@@ -122,49 +155,34 @@ import java.util.UUID
             topBar={
                 Surface(color=MaterialTheme.colorScheme.primary,contentColor=MaterialTheme.colorScheme.onPrimary) {
                     Box(Modifier.fillMaxWidth().statusBarsPadding().height(if(landscape)44.dp else 56.dp),contentAlignment=Alignment.Center) {
-                        Text(listOf("总览","账目","统计","缴费")[tab],style=MaterialTheme.typography.titleLarge)
+                        Text(tab.title,style=MaterialTheme.typography.titleLarge)
                     }
                 }
             },
-            bottomBar={if(!landscape)NavigationBar(containerColor=MaterialTheme.colorScheme.surface,tonalElevation=0.dp) {
-                val icons=listOf(Icons.Outlined.SpaceDashboard,Icons.Outlined.ReceiptLong,Icons.Outlined.DonutLarge,Icons.Outlined.EventNote)
-                for(position in 0..4) {
-                    if(position==2) {
-                        Column(Modifier.weight(1f),horizontalAlignment=Alignment.CenterHorizontally,verticalArrangement=Arrangement.spacedBy(2.dp)) {
-                            FilledIconButton(onClick={sheet=if(tab==3)"plan:new" else "entry:new"},enabled=data.ready,
-                                modifier=Modifier.size(52.dp).testTag("primary-add").semantics {contentDescription=if(tab==3)"添加计划" else "记一笔"}) {
-                                Icon(Icons.Outlined.Add,null,Modifier.size(28.dp))
-                            }
-                            Text(if(tab==3)"添加计划" else "记一笔",style=MaterialTheme.typography.labelMedium,color=MaterialTheme.colorScheme.primary)
-                        }
-                        continue
-                    }
-                    val i=if(position<2)position else position-1
-                    NavigationBarItem(selected=tab==i,onClick={tab=i},icon={Icon(icons[i],null)},label={Text(listOf("总览","账目","统计","缴费")[i])},
-                        colors=NavigationBarItemDefaults.colors(selectedIconColor=MaterialTheme.colorScheme.primary,selectedTextColor=MaterialTheme.colorScheme.primary,
-                            indicatorColor=MaterialTheme.colorScheme.primaryContainer))
-                }
-            }},
+            bottomBar={if(!landscape)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
             snackbarHost={SnackbarHost(snack)}
         ) {padding->
             Row(Modifier.padding(padding).fillMaxSize()) {
                 if(landscape)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
-                    FilledIconButton(onClick={sheet=if(tab==3)"plan:new" else "entry:new"},enabled=data.ready,
-                        modifier=Modifier.size(48.dp).testTag("primary-add").semantics {contentDescription=if(tab==3)"添加计划" else "记一笔"}) {Icon(Icons.Outlined.Add,null)}
-                    listOf(Icons.Outlined.SpaceDashboard,Icons.Outlined.ReceiptLong,Icons.Outlined.DonutLarge,Icons.Outlined.EventNote).forEachIndexed{i,icon->
-                        NavigationRailItem(selected=tab==i,onClick={tab=i},icon={Icon(icon,listOf("总览","账目","统计","缴费")[i])},
-                            modifier=Modifier.height(48.dp),colors=NavigationRailItemDefaults.colors(indicatorColor=MaterialTheme.colorScheme.primaryContainer))
+                    FilledIconButton(onClick={sheet="entry:new"},enabled=data.ready,
+                        modifier=Modifier.size(48.dp).testTag("primary-add").semantics {contentDescription="记账"}) {Icon(Icons.Outlined.Add,null)}
+                    Destination.entries.forEach { destination ->
+                        NavigationRailItem(selected=tab==destination,onClick={tab=destination},
+                            modifier=Modifier.testTag("nav-${destination.name}"),
+                            icon={Icon(destination.icon,null)},label={Text(destination.title)},
+                            colors=NavigationRailItemDefaults.colors(indicatorColor=MaterialTheme.colorScheme.primaryContainer))
                     }
                 }
               Box(Modifier.weight(1f).fillMaxHeight()) {
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
-                    tab==0->Overview(data,filter,::change,{sheet="budget"},{sheet="entry:${it.id}"},{change(filter.copy(day=null,category=null,type=null));tab=1},{tab=3},{confirmDemo=true})
-                    tab==1->EntriesScreen(data,filter,::change,{sheet="entry:${it.id}"},{sheet="csv"},{sheet="text"})
-                    tab==2->StatisticsScreen(data,filter,::change,{change(it);tab=1},{sheet="review"})
-                    else->PaymentsScreen(data,notifications,exact,::notifyPermission,::exactPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
-                        {confirmReminder=true},{sheet="record-plan:${it.id}"})
+                    tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{sheet="csv"},{sheet="text"},
+                        {sheet="budget"},{tab=Destination.PLANS})
+                    tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
+                    tab==Destination.PLANS->PaymentsScreen(data,notifications,exact,::notifyPermission,::exactPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
+                        {confirmReminder=true},{sheet="record-plan:${it.id}"},{sheet="plan:new"})
+                    tab==Destination.SETTINGS->SettingsScreen(theme,vm::changeTheme,{confirmDemo=true},{sheet="csv"},::notifyPermission,notifications)
                 }
                 if(busy&&sheet==null)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
               }
@@ -192,13 +210,12 @@ import java.util.UUID
                     }
                     route=="budget"->BudgetEditor(filter.month,data.budget(filter.month),busy){vm.setBudget(filter.month,it,close)}
                     route.startsWith("plan:")->PaymentEditor(data.plans.firstOrNull{it.id.toString()==route.substringAfter(':')},busy){vm.savePlan(it,close)}
-                    route=="review"->ReviewEditor(filter.month,data,busy,{vm.saveReview(it,close)},{code->change(filter.copy(day=null,category=code,type=if(code==null)null else "expense"));tab=1;close()})
+                    route=="review"->ReviewEditor(filter.month,data,busy,{vm.saveReview(it,close)},{code->change(filter.copy(day=null,category=code,type=if(code==null)null else "expense"));tab=Destination.BILLS;close()})
                     route=="csv"->CsvMenu(busy,{sheet=null;importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
                     route=="import-preview"->preview?.let{ImportPreviewSheet(it,busy){keep->vm.task{val outcome=vm.repository.commitImport(it,keep);vm.importPreview.value=null;sheet="import-result:${outcome.added}:${outcome.skipped}:${outcome.invalid}"}}}
                         ?:EmptyState("预览已经关闭","请重新选择 CSV 文件。")
-                    route.startsWith("import-result:")->ImportResultSheet(route.split(':').drop(1).map{it.toInt()},close){sheet=null;tab=1;change(filter.copy(type=null,category=null))}
+                    route.startsWith("import-result:")->ImportResultSheet(route.split(':').drop(1).map{it.toInt()},close){sheet=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))}
                     route=="text"->TextEntrySheet(rawText,{rawText=it}){keyboard?.hide();sheet="parsed"}
-                    route=="settings"->SettingsSheet(theme,vm::changeTheme,{close();confirmDemo=true},{sheet="csv"},::notifyPermission,notifications)
                 }
             }
         }
@@ -240,7 +257,7 @@ import java.util.UUID
         Icon(Icons.Outlined.TaskAlt,null,tint=MaterialTheme.colorScheme.secondary,modifier=Modifier.size(42.dp))
         Text("导入结果",style=MaterialTheme.typography.headlineSmall)
         Panel{Text("成功导入 ${values[0]} 笔",style=MaterialTheme.typography.titleLarge);Subtitle("跳过重复 ${values[1]} 笔 · 无效记录 ${values[2]} 笔");Subtitle("新账目会按文件中的日期显示，可切换月份查看。预算、计划与回顾未改变。")}
-        PrimaryButton("前往账目",onClick=onView)
+        PrimaryButton("前往账单",onClick=onView)
         TextButton(onClose,Modifier.fillMaxWidth()){Text("完成")}
     }
 }
@@ -253,9 +270,8 @@ import java.util.UUID
     }
 }
 
-@Composable private fun SettingsSheet(theme:String,onTheme:(String)->Unit,onDemo:()->Unit,onCsv:()->Unit,onNotify:()->Unit,notifications:Boolean) {
-    Column(Modifier.fillMaxWidth().fillMaxHeight(.9f).padding(horizontal=20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Text("设置",style=MaterialTheme.typography.headlineSmall)
+@Composable private fun SettingsScreen(theme:String,onTheme:(String)->Unit,onDemo:()->Unit,onCsv:()->Unit,onNotify:()->Unit,notifications:Boolean) {
+    Column(Modifier.fillMaxSize().padding(horizontal=20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Subtitle("航小账 1.0")
         Panel {Text("外观",style=MaterialTheme.typography.titleMedium)
             listOf("system" to "跟随系统","light" to "浅色","dark" to "深色").forEach{(v,label)->Row(Modifier.fillMaxWidth().clickable{onTheme(v)},verticalAlignment=Alignment.CenterVertically){RadioButton(theme==v,{onTheme(v)});Text(label)}}
