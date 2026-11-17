@@ -32,7 +32,7 @@ import java.time.format.DateTimeFormatter
     }
 }
 
-@Composable fun MonthPicker(filter: FilterSpec, change: (FilterSpec) -> Unit) {
+@Composable fun MonthPicker(filter: FilterSpec, change: (FilterSpec) -> Unit, latestDate: LocalDate? = null) {
     val context=LocalContext.current
     Surface(color=MaterialTheme.colorScheme.surface,shape=RoundedCornerShape(16.dp)) {
         Row(Modifier.fillMaxWidth().padding(horizontal=4.dp),verticalAlignment=Alignment.CenterVertically) {
@@ -40,14 +40,14 @@ import java.time.format.DateTimeFormatter
                 Icon(Icons.Outlined.ChevronLeft,"上个月")
             }
             TextButton({
-                DatePickerDialog(context,{_,y,m,_->change(filter.copy(month=YearMonth.of(y,m+1),day=null))},filter.month.year,filter.month.monthValue-1,1)
-                    .apply { setTitle("选择月份（忽略日）"); datePicker.minDate=LocalDate.of(1900,1,1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(); datePicker.maxDate=LocalDate.of(2100,12,31).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }.show()
+                DatePickerDialog(context,{_,y,m,_->change(filter.copy(month=minOf(YearMonth.of(y,m+1),latestDate?.let(YearMonth::from) ?: YearMonth.of(2100,12)),day=null))},filter.month.year,filter.month.monthValue-1,1)
+                    .apply { setTitle("选择月份（忽略日）"); datePicker.minDate=LocalDate.of(1900,1,1).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli(); datePicker.maxDate=(latestDate ?: LocalDate.of(2100,12,31)).atStartOfDay(ZoneId.systemDefault()).toInstant().toEpochMilli() }.show()
             },modifier=Modifier.weight(1f)) {
                 Icon(Icons.Outlined.CalendarMonth,null,Modifier.size(18.dp)); Spacer(Modifier.width(8.dp))
                 Text("${filter.month.year} 年 ${filter.month.monthValue} 月",style=MaterialTheme.typography.titleMedium)
                 Icon(Icons.Outlined.ExpandMore,null,Modifier.size(18.dp))
             }
-            IconButton({if(filter.month.year<2100 || filter.month.monthValue<12) change(filter.copy(month=filter.month.plusMonths(1),day=null))}) { Icon(Icons.Outlined.ChevronRight,"下个月") }
+            IconButton({change(filter.copy(month=filter.month.plusMonths(1),day=null))}, enabled=filter.month < (latestDate?.let(YearMonth::from) ?: YearMonth.of(2100,12))) { Icon(Icons.Outlined.ChevronRight,"下个月") }
         }
     }
 }
@@ -83,11 +83,12 @@ import java.time.format.DateTimeFormatter
 
 @Composable fun Overview(data: LedgerData, filter: FilterSpec, change: (FilterSpec)->Unit, onBudget:()->Unit,
     onEntry:(TransactionEntity)->Unit, onAll:()->Unit, onPayments:()->Unit, onDemo:()->Unit) {
+    val today = rememberDeviceDate()
     val monthEntries=data.monthEntries(filter.month); val total=monthEntries.totals()
     val compact=LocalConfiguration.current.screenHeightDp<500
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         if(!compact)item { PageTitle("校园日常，心中有数。","记下每一笔，留点余量给喜欢的生活。") }
-        item { MonthPicker(filter,change) }
+        item { MonthPicker(filter,change,latestDate=today) }
         item {
           Row(horizontalArrangement=Arrangement.spacedBy(16.dp)) {
             Surface(modifier=if(compact)Modifier.weight(1f) else Modifier.fillMaxWidth(),shape=RoundedCornerShape(24.dp),color=Color.Transparent) {

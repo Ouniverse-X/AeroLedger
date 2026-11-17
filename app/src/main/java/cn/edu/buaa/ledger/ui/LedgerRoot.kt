@@ -54,6 +54,17 @@ import java.util.UUID
     var tab by rememberSaveable {mutableIntStateOf(0)}
     var filter by remember {mutableStateOf(vm.filter)}
     fun change(next:FilterSpec) {filter=next;vm.filter=next}
+    val today = rememberDeviceDate()
+    var lastToday by remember { mutableStateOf(today) }
+    LaunchedEffect(today, tab) {
+        if (today != lastToday && filter.month == YearMonth.from(lastToday)) {
+            change(filter.copy(month=YearMonth.from(today),day=null))
+        }
+        lastToday = today
+        if (tab == 0 && filter.month > YearMonth.from(today)) {
+            change(filter.copy(month=EntryDates.homeMonth(filter.month,today),day=null))
+        }
+    }
     var sheet by rememberSaveable {mutableStateOf<String?>(null)}
     var rawText by rememberSaveable {mutableStateOf("")}
     var exportAll by rememberSaveable {mutableStateOf(true)}
@@ -176,7 +187,7 @@ import java.util.UUID
                         val id=route.substringAfter(':',"")
                         val original=data.entries.firstOrNull{it.id==id}
                         val plan=if(route.startsWith("record-plan:"))data.plans.firstOrNull{it.id.toString()==id} else null
-                        EntryEditor(original,filter.day?:if(filter.month==YearMonth.now())LocalDate.now() else filter.month.atDay(1),busy,
+                        EntryEditor(original,EntryDates.defaultDate(filter,today),busy,
                             {entry,done->vm.saveEntry(entry){val date=LocalDate.ofEpochDay(entry.dateEpochDay);change(filter.copy(month=YearMonth.from(date),day=if(filter.day!=null)date else null,type=null,category=null));done()}},close,vm::deleteEntry,
                             raw=if(route=="parsed")rawText else "",parsed=if(route=="parsed")CampusParser.parse(rawText,LocalDate.now()) else null,prefill=plan)
                     }
