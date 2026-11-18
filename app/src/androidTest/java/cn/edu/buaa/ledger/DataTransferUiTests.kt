@@ -26,27 +26,54 @@ class DataTransferUiTests {
         compose.onNodeWithTag("export-custom-dates").performClick()
         compose.onNodeWithTag("export-custom-categories").performScrollTo().performClick()
         compose.onNodeWithText("餐饮",substring=false).performScrollTo().performClick()
-        compose.onNodeWithText("导出 1 笔账目").performClick()
+        compose.onNodeWithText("导出账目").performClick()
         compose.runOnIdle { assertEquals(listOf(expense),selected) }
         compose.onNodeWithText("兼职",substring=false).performScrollTo().performClick()
-        compose.onNodeWithText("导出 2 笔账目").performClick()
+        compose.onNodeWithText("导出账目").performClick()
         compose.runOnIdle { assertEquals(listOf(expense,income),selected) }
         compose.onNodeWithText("全部类型").performScrollTo().performClick()
         compose.onNodeWithText("餐饮",substring=false).assertDoesNotExist()
-        compose.onNodeWithText("导出 2 笔账目").assertIsEnabled()
+        compose.onNodeWithText("导出账目").assertIsEnabled()
+        compose.onNodeWithTag("export-type-income").performScrollTo().performClick()
+        compose.onNodeWithText("全部收入类型").assertIsDisplayed()
+        compose.onNodeWithText("导出账目").performClick()
+        compose.runOnIdle { assertEquals(listOf(income),selected) }
+        compose.onNodeWithTag("export-type-expense").performScrollTo().performClick()
+        compose.onNodeWithText("全部支出类型").assertIsDisplayed()
+        compose.onNodeWithText("导出账目").performClick()
+        compose.runOnIdle { assertEquals(listOf(expense),selected) }
     }
 
-    @Test fun importRestoresOnlyChosenSkippedEntry() {
+    @Test fun importReasonsRestoreOnlyChosenEntry() {
         val rows=listOf(ImportRow(2,entry("new"),"valid"),ImportRow(3,entry("restore"),"suspicious"),
-            ImportRow(4,entry("skip"),"suspicious"),ImportRow(5,entry("duplicate"),"duplicate"),
-            ImportRow(6,null,"invalid","金额无效"))
-        var restored:Set<Int>?=null
-        compose.setContent { LedgerTheme { ImportPreviewScreen(ImportPreview("test","账目.csv",rows),false){restored=it} } }
-        compose.onNodeWithText("部分账目无法导入").assertIsDisplayed()
-        compose.onNodeWithText("校验通过").assertDoesNotExist()
-        compose.onNodeWithText("查看跳过的账目").performScrollTo().performClick()
+            ImportRow(4,entry("skip"),"suspicious"),ImportRow(5,entry("duplicate"),"duplicate"))
+        var restored:Int?=null
+        compose.setContent { LedgerTheme { ImportReasonsScreen(ImportPreview("test","账目.csv",rows),true,emptySet(),false){restored=it} } }
         compose.onAllNodesWithText("仍然导入")[0].performScrollTo().performClick()
-        compose.onNodeWithText("导入账目").performClick()
-        compose.runOnIdle { assertEquals(setOf(3),restored) }
+        compose.runOnIdle { assertEquals(3,restored) }
     }
+
+    @Test fun importPreviewCollapsesEntriesAndOpensReasons() {
+        val rows=(2..6).map { ImportRow(it,entry("item-$it"),"valid") }+
+            ImportRow(7,null,"invalid","金额无效")+ImportRow(8,entry("duplicate"),"duplicate")
+        var invalid=false;var skipped=false
+        compose.setContent { LedgerTheme { ImportPreviewScreen(ImportPreview("test","账目.csv",rows),false,emptySet(),
+            {invalid=true},{skipped=true},{}) } }
+        compose.onAllNodesWithText("查看原因")[0].performClick()
+        compose.onAllNodesWithText("查看原因")[1].performClick()
+        compose.runOnIdle { assertTrue(invalid);assertTrue(skipped) }
+        compose.onNodeWithText("账目-item-6").assertDoesNotExist()
+        compose.onNodeWithText("展开").performScrollTo().performClick()
+        compose.onNodeWithText("账目-item-6").performScrollTo().assertIsDisplayed()
+    }
+    @Test fun exportPreviewExpandsEntries() {
+        val entries=(1..5).map { entry("item-$it") }
+        compose.setContent { LedgerTheme { ExportSelectionScreen(entries,false){} } }
+        compose.onNodeWithText("账目-item-5").assertDoesNotExist()
+        compose.onNodeWithText("展开").performScrollTo().performClick()
+        compose.onNodeWithText("账目-item-5").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("收起").performScrollTo().performClick()
+        compose.onNodeWithText("账目-item-5").assertDoesNotExist()
+    }
+
 }

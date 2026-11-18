@@ -85,7 +85,7 @@ class LedgerUiTests {
         compose.onNodeWithText("日期范围").assertIsDisplayed()
         compose.onNodeWithText("CSV 文件格式").assertDoesNotExist()
         compose.activityRule.scenario.recreate()
-        compose.onNodeWithText("导出账目").assertIsDisplayed()
+        compose.onNodeWithText("日期范围").assertIsDisplayed()
         compose.onNodeWithTag("settings-back").performClick()
         compose.onNodeWithTag("settings-back").performClick()
         compose.onNodeWithTag("nav-SETTINGS").assertIsSelected()

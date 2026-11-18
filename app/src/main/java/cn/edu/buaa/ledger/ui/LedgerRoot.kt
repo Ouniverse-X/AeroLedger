@@ -90,8 +90,10 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     val theme = settings.mode
     val themeColor = settings.color
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
+    var restoredImportRows by rememberSaveable { mutableStateOf(listOf<Int>()) }
     fun backPage() { settingsPage=when(settingsPage) {
         "导出账目", "导入账目", "导入结果" -> "数据导入与导出"
+        "无法导入的账目", "跳过的账目" -> "导入账目"
         else -> null
     } }
     BackHandler(settingsPage != null) { backPage() }
@@ -163,7 +165,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             }?:error("无法读取所选文件")
             vm.repository.previewCsv(StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString(),name)
         }
-        vm.importPreview.value=result;settingsPage="导入账目"
+        vm.importPreview.value=result;restoredImportRows=emptyList();settingsPage="导入账目"
     }}
     val exportFile=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {uri->if(uri!=null)vm.task {
         val content=vm.pendingExport ?: error("请重新选择导出范围")
@@ -209,6 +211,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     modifier=Modifier.fillMaxSize(),
                     transitionSpec={
                         fun depth(page:String?)=when(page) {
+                            "无法导入的账目", "跳过的账目" -> 3
                             null -> 0
                             "导出账目", "导入账目", "导入结果" -> 2
                             else -> 1
@@ -227,10 +230,16 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     page=="关于"->AboutScreen()
                     page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{importFile.launch(arrayOf("*/*"))},{settingsPage="导出账目"})
                     page=="导出账目"->ExportSelectionScreen(data.entries,busy||!data.ready,::export)
-                    page=="导入账目"->preview?.let { selected -> ImportPreviewScreen(selected,busy) { restored -> vm.task {
-                        vm.importOutcome.value=vm.repository.commitImport(selected,false,restored)
-                        vm.importPreview.value=null;settingsPage="导入结果"
-                    } } } ?: Column(Modifier.padding(20.dp)) { Text("请重新选择文件");TextButton({settingsPage="数据导入与导出"}){Text("返回")} }
+                    page in listOf("导入账目","无法导入的账目","跳过的账目")->preview?.let { selected ->
+                        if(page=="导入账目") ImportPreviewScreen(selected,busy,restoredImportRows.toSet(),
+                            {settingsPage="无法导入的账目"},{settingsPage="跳过的账目"}) { vm.task {
+                                vm.importOutcome.value=vm.repository.commitImport(selected,false,restoredImportRows.toSet())
+                                settingsPage="导入结果"
+                            } }
+                        else ImportReasonsScreen(selected,page=="跳过的账目",restoredImportRows.toSet(),busy) { ordinal ->
+                            restoredImportRows=if(ordinal in restoredImportRows)restoredImportRows-ordinal else restoredImportRows+ordinal
+                        }
+                    } ?: Column(Modifier.padding(20.dp)) { Text("请重新选择文件");TextButton({settingsPage="数据导入与导出"}){Text("返回")} }
                     page=="导入结果"->ImportResultScreen(importOutcome,{settingsPage="数据导入与导出"}) {
                         settingsPage=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))
                     }
