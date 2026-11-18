@@ -94,6 +94,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
         "导出账目", "导入账目", "导入结果" -> "数据导入与导出"
         "无法导入的账目", "跳过的账目" -> "导入账目"
         "预览账目" -> "导出账目"
+        "数据与隐私" -> "关于"
         else -> null
     } }
     BackHandler(settingsPage != null) { backPage() }
@@ -214,7 +215,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                         fun depth(page:String?)=when(page) {
                             "无法导入的账目", "跳过的账目", "预览账目" -> 3
                             null -> 0
-                            "导出账目", "导入账目", "导入结果" -> 2
+                            "导出账目", "导入账目", "导入结果", "数据与隐私" -> 2
                             else -> 1
                         }
                         val direction=if(depth(targetState)<depth(initialState))-1 else 1
@@ -229,7 +230,8 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
                     page=="管理权限"->PermissionsScreen(::notifyPermission)
-                    page=="关于"->AboutScreen()
+                    page=="关于"->AboutScreen {settingsPage="数据与隐私"}
+                    page=="数据与隐私"->DataPrivacyScreen()
                     page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{vm.importPreview.value=null;settingsPage="导入账目"},{settingsPage="导出账目"})
                     page=="导出账目"->ExportSelectionScreen(data.entries,busy||!data.ready,{vm.exportPreview=it;settingsPage="预览账目"},::export)
                     page=="预览账目"->ExportPreviewScreen(vm.exportPreview)
@@ -317,18 +319,25 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
 }
 
-@Composable private fun AboutScreen() {
+@Composable private fun AboutScreen(onPrivacy:()->Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Panel {
-            Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween) {
-                Text("版本",style=MaterialTheme.typography.bodyLarge)
-                Text(BuildConfig.VERSION_NAME,style=MaterialTheme.typography.bodyLarge,color=MaterialTheme.colorScheme.onSurfaceVariant)
+        Panel { SettingsAction(Icons.Outlined.PrivacyTip,"数据与隐私",onPrivacy) }
+    }
+}
+
+@Composable private fun DataPrivacyScreen() {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        listOf(
+            Icons.Outlined.Storage to "账目、预算、缴费计划和月度/年度回顾保存在本机，卸载应用会删除这些数据。",
+            Icons.Outlined.FileDownload to "请提前导出需要保留的账目，注意导出内容不包含预算、缴费计划和月度/年度回顾。",
+            Icons.Outlined.PrivacyTip to "图片识别在本机完成，相关内容不会上传。"
+        ).forEach { (icon,body) ->
+            Panel {
+                Row(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
+                    Icon(icon,null,tint=MaterialTheme.colorScheme.primary)
+                    Text(body,style=MaterialTheme.typography.bodyLarge)
+                }
             }
-        }
-        Panel {
-            Text("数据与隐私",style=MaterialTheme.typography.titleMedium)
-            Subtitle("账目、预算、缴费计划和消费回顾保存在本机，图片识别在本机完成。")
-            Subtitle("卸载应用会删除本地数据。请提前导出需要保留的账目；CSV 不包含预算、缴费计划和消费回顾。")
         }
     }
 }
