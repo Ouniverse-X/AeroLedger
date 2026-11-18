@@ -327,15 +327,15 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
 
 @Composable private fun DataPrivacyScreen() {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        listOf(
-            Icons.Outlined.Storage to "账目、预算、缴费计划和月度/年度回顾保存在本机，卸载应用会删除这些数据。",
-            Icons.Outlined.FileDownload to "请提前导出需要保留的账目，注意导出内容不包含预算、缴费计划和月度/年度回顾。",
-            Icons.Outlined.PrivacyTip to "图片识别在本机完成，相关内容不会上传。"
-        ).forEach { (icon,body) ->
-            Panel {
-                Row(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
-                    Icon(icon,null,tint=MaterialTheme.colorScheme.primary)
-                    Text(body,style=MaterialTheme.typography.bodyLarge)
+        Panel {
+            Row(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
+                Icon(Icons.Outlined.PrivacyTip,null,tint=MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+                    Text("账目、预算、缴费计划和月度/年度回顾保存在本机，卸载应用会删除这些数据。",style=MaterialTheme.typography.bodyLarge)
+                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+                    Text("请提前导出需要保留的账目，注意导出内容不包含预算、缴费计划和月度/年度回顾。",style=MaterialTheme.typography.bodyLarge)
+                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
+                    Text("图片识别在本机完成，相关内容不会上传。",style=MaterialTheme.typography.bodyLarge)
                 }
             }
         }
