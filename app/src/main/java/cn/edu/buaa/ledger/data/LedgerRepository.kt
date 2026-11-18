@@ -35,6 +35,12 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
         val old = dao.transaction(item.id)
         dao.saveTransaction(item.copy(createdAt = old?.createdAt ?: item.createdAt, updatedAt = System.currentTimeMillis()))
     }
+    suspend fun createEntry(item: TransactionEntity): String = database.withTransaction {
+        LedgerRules.validate(item.toEntry())
+        var next = item
+        while (dao.insertTransaction(next) == -1L) next = item.copy(id = UUID.randomUUID().toString())
+        next.id
+    }
     suspend fun setBudget(month: YearMonth, amount: Long) {
         require(amount in 1..LedgerRules.MAX_CENTS) { "预算金额超出范围" }
         dao.saveBudget(BudgetEntity(month.toString(), amount))
@@ -58,37 +64,31 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
         val hash = MessageDigest.getInstance("SHA-256").digest(text.toByteArray()).joinToString("") { "%02x".format(it) }
         val known = dao.transactions()
         val ids = known.map { it.id }.toMutableSet()
-        val fingerprints = known.map { it.toEntry().fingerprint() }.toMutableSet()
-        val receipts = dao.receipts(hash).map { it.ordinal }.toSet()
         val rows = parsed.drop(1).mapIndexed { index, fields ->
-            val ordinal = index + 2
+            val ordinal = index + 1
             try {
                 require(fields.size == parsed.first().size) { "列数与表头不一致" }
                 val entry = CsvCodec.decodeRow(fields).toEntity("csv", filename)
                 val state = when {
-                    ordinal in receipts || entry.id in ids -> "duplicate"
-                    entry.toEntry().fingerprint() in fingerprints -> "suspicious"
+                    entry.id in ids -> "duplicate"
                     else -> "valid"
                 }
-                ids.add(entry.id); fingerprints.add(entry.toEntry().fingerprint())
-                ImportRow(ordinal, entry, state, when(state) { "duplicate" -> "记录 ID 或文件记录已导入，不覆盖已有账目"; "suspicious" -> "字段相同但 ID 不同，请核对是否为另一笔真实消费"; else -> "校验通过" })
+                ids.add(entry.id)
+                ImportRow(ordinal, entry, state, when(state) { "duplicate" -> "这笔账目已经存在，已跳过。"; else -> "" })
             } catch (e: IllegalArgumentException) { ImportRow(ordinal, null, "invalid", e.message ?: "格式错误", fields.joinToString(" · ")) }
         }
         ImportPreview(hash, filename, rows)
     }
 
-    suspend fun commitImport(preview: ImportPreview, keepSuspicious: Boolean): ImportOutcome = database.withTransaction {
+    suspend fun commitImport(preview: ImportPreview): ImportOutcome = database.withTransaction {
         var added = 0; var skipped = 0
-        val receipts = dao.receipts(preview.hash).map { it.ordinal }.toMutableSet()
         for (row in preview.rows) {
             val entry = row.entry
             if (entry == null) continue
-            if (row.state == "duplicate" || row.ordinal in receipts || dao.transaction(entry.id) != null ||
-                row.state == "suspicious" && !keepSuspicious) { skipped++; continue }
+            if (row.state == "duplicate" || dao.transaction(entry.id) != null) { skipped++; continue }
             LedgerRules.validate(entry.toEntry())
             dao.saveTransaction(entry)
-            dao.saveReceipt(ImportReceipt(preview.hash, row.ordinal, entry.id))
-            receipts.add(row.ordinal); added++
+            added++
         }
         ImportOutcome(added, skipped, preview.invalid)
     }

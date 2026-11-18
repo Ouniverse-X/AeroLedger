@@ -1,13 +1,16 @@
 package cn.edu.buaa.ledger.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
+
 import android.app.AlarmManager
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
 import android.provider.Settings
+import androidx.compose.animation.*
+import androidx.compose.animation.core.tween
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
@@ -82,15 +85,25 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun LedgerRoot(vm:LedgerViewModel,openedPlan:Long?,clearPlan:()->Unit,onDark:(Boolean)->Unit) {
     val data by vm.data.collectAsStateWithLifecycle()
-    val theme by vm.theme.collectAsStateWithLifecycle()
-    val themeColor by vm.themeColor.collectAsStateWithLifecycle()
-    var appearanceOpen by rememberSaveable { mutableStateOf(false) }
-    BackHandler(appearanceOpen) { appearanceOpen=false }
+    val appearance by vm.appearanceSettings.collectAsStateWithLifecycle()
+    val settings = appearance ?: return
+    val theme = settings.mode
+    val themeColor = settings.color
+    var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
+    fun backPage() { settingsPage=when(settingsPage) {
+        "导出账目", "导入账目", "导入结果" -> "数据导入与导出"
+        "无法导入的账目", "跳过的账目" -> "导入账目"
+        "预览账目" -> "导出账目"
+        "数据与隐私" -> "关于"
+        else -> null
+    } }
+    BackHandler(settingsPage != null) { backPage() }
     val busy by vm.busy.collectAsStateWithLifecycle()
     val startupError by vm.startupError.collectAsStateWithLifecycle()
     val preview by vm.importPreview.collectAsStateWithLifecycle()
+    val importOutcome by vm.importOutcome.collectAsStateWithLifecycle()
     val dark=theme=="dark"||theme=="system"&&isSystemInDarkTheme()
-    SideEffect {onDark(dark)}
+    LaunchedEffect(dark) {onDark(dark)}
     var tab by rememberSaveable {mutableStateOf(Destination.BILLS)}
     var filter by remember {mutableStateOf(vm.filter)}
     fun change(next:FilterSpec) {filter=next;vm.filter=next}
@@ -107,36 +120,41 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
     var sheet by rememberSaveable {mutableStateOf<String?>(null)}
     var rawText by rememberSaveable {mutableStateOf("")}
-    var exportAll by rememberSaveable {mutableStateOf(true)}
-    var confirmDemo by remember {mutableStateOf(false)}
-    var confirmReminder by remember {mutableStateOf(false)}
     val snack=remember{SnackbarHostState()}
     val context=LocalContext.current
     val config=LocalConfiguration.current
     val landscape=config.screenWidthDp>config.screenHeightDp && config.screenHeightDp<500
     val keyboard=LocalSoftwareKeyboardController.current
     var notifications by remember {mutableStateOf(PaymentReminders.allowed(context))}
-    var exact by remember {mutableStateOf(PaymentReminders.exactAllowed(context))}
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME){notifications=PaymentReminders.allowed(context);exact=PaymentReminders.exactAllowed(context)}}
+        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME){
+            val current=PaymentReminders.allowed(context)
+            notifications=current
+        }}
         lifecycle.addObserver(observer);onDispose{lifecycle.removeObserver(observer)}
     }
     LaunchedEffect(Unit) {vm.messages.collect{snack.showSnackbar(it)}}
     LaunchedEffect(openedPlan,data.ready) {
         if(openedPlan!=null&&data.ready) {tab=Destination.PLANS;if(data.plans.any{it.id==openedPlan})sheet="plan:$openedPlan";clearPlan()}
     }
-    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {notifications=PaymentReminders.allowed(context);vm.restoreReminders()}
-    fun notifyPermission() {
-        if(Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED &&
-            !context.getSharedPreferences("permissions",0).getBoolean("asked",false)) {
-            context.getSharedPreferences("permissions",0).edit().putBoolean("asked",true).apply();permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else runCatching{context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))}
-            .onFailure{vm.messages.tryEmit("请在系统设置中允许航小账通知")}
+    val firstNotificationRequest=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notifications=PaymentReminders.allowed(context)
+        if(notifications) vm.restoreReminders()
     }
-    fun exactPermission() {
-        if(Build.VERSION.SDK_INT>=31) runCatching {context.startActivity(Intent(Settings.ACTION_REQUEST_SCHEDULE_EXACT_ALARM,Uri.parse("package:${context.packageName}")))}
-            .onFailure{vm.messages.tryEmit("此设备未提供精确提醒设置，将使用弹性提醒")}
+    LaunchedEffect(Unit) {
+        val preferences=context.getSharedPreferences("permissions",0)
+        if(!preferences.getBoolean("asked",false)) {
+            preferences.edit().putBoolean("asked",true).apply()
+            if(Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+                firstNotificationRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
+    fun notifyPermission() {
+        runCatching {
+            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+        }.onFailure { vm.messages.tryEmit("请在系统设置中允许航小账通知") }
     }
     val importFile=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) vm.task {
         val result=withContext(Dispatchers.IO) {
@@ -148,33 +166,37 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             }?:error("无法读取所选文件")
             vm.repository.previewCsv(StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString(),name)
         }
-        vm.importPreview.value=result;sheet="import-preview"
+        vm.importPreview.value=result;settingsPage="导入账目"
     }}
     val exportFile=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {uri->if(uri!=null)vm.task {
-        val snapshot=if(exportAll)vm.data.value.entries else filter.select(vm.data.value.entries)
-        withContext(Dispatchers.IO){context.contentResolver.openOutputStream(uri,"wt")?.use{it.write(CsvCodec.encode(snapshot.map{it.toEntry()}).toByteArray(StandardCharsets.UTF_8))}?:error("无法写入所选位置")}
-        vm.messages.emit("已导出 ${snapshot.size} 笔账目")
+        val content=vm.pendingExport ?: error("请重新选择导出范围")
+        withContext(Dispatchers.IO){context.contentResolver.openOutputStream(uri,"wt")?.use{it.write(content.toByteArray(StandardCharsets.UTF_8))}?:error("无法写入所选位置")}
+        vm.pendingExport=null
+        vm.messages.emit("已导出账目")
     }}
-    fun export(all:Boolean) {exportAll=all;sheet=null;exportFile.launch("航小账-${if(all)"全部账目" else filter.label}.csv")}
+    fun export(entries:List<TransactionEntity>) {
+        vm.pendingExport=CsvCodec.encode(entries.map{it.toEntry()})
+        exportFile.launch("航小账-账目.csv")
+    }
 
     LedgerTheme(theme,themeColor) {
         Scaffold(containerColor=MaterialTheme.colorScheme.background,
             topBar={
                 Surface(color=MaterialTheme.colorScheme.primary,contentColor=MaterialTheme.colorScheme.onPrimary) {
                     Box(Modifier.fillMaxWidth().statusBarsPadding().height(if(landscape)44.dp else 56.dp),contentAlignment=Alignment.Center) {
-                        if(appearanceOpen) IconButton({appearanceOpen=false},Modifier.align(Alignment.CenterStart).testTag("appearance-back")) { Icon(Icons.Outlined.ArrowBack,"返回设置") }
-                        Text(if(appearanceOpen)"外观" else tab.title,style=MaterialTheme.typography.titleLarge)
+                        if(settingsPage != null) IconButton({backPage()},Modifier.align(Alignment.CenterStart).testTag(if(settingsPage=="外观")"appearance-back" else "settings-back")) { Icon(Icons.Outlined.ArrowBack,"返回设置") }
+                        Text(settingsPage ?: tab.title,style=MaterialTheme.typography.titleLarge)
                     }
                 }
             },
-            bottomBar={if(!landscape&&!appearanceOpen)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
+            bottomBar={if(!landscape&&settingsPage==null)LedgerBottomBar(tab,data.ready,{tab=it},{sheet="entry:new"})},
             snackbarHost={SnackbarHost(snack)}
         ) {padding->
             // Let page content extend behind the raised button instead of reserving a blank strip.
-            val contentBottom=(padding.calculateBottomPadding()-if(landscape||appearanceOpen)0.dp else 18.dp).coerceAtLeast(0.dp)
+            val contentBottom=(padding.calculateBottomPadding()-if(landscape||settingsPage!=null)0.dp else 18.dp).coerceAtLeast(0.dp)
             Row(Modifier.padding(start=padding.calculateStartPadding(LocalLayoutDirection.current),
                 end=padding.calculateEndPadding(LocalLayoutDirection.current),top=padding.calculateTopPadding(),bottom=contentBottom).fillMaxSize()) {
-                if(landscape&&!appearanceOpen)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
+                if(landscape&&settingsPage==null)NavigationRail(containerColor=MaterialTheme.colorScheme.surface,windowInsets=WindowInsets(0,0,0,0)) {
                     FilledIconButton(onClick={sheet="entry:new"},enabled=data.ready,
                         modifier=Modifier.size(48.dp).testTag("primary-add").semantics {contentDescription="记账"}) {Icon(Icons.Outlined.Add,null)}
                     Destination.entries.forEach { destination ->
@@ -185,31 +207,72 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     }
                 }
               Box(Modifier.weight(1f).fillMaxHeight()) {
+                val pageStateHolder=androidx.compose.runtime.saveable.rememberSaveableStateHolder()
+                AnimatedContent(
+                    targetState=settingsPage,
+                    modifier=Modifier.fillMaxSize(),
+                    transitionSpec={
+                        fun depth(page:String?)=when(page) {
+                            "无法导入的账目", "跳过的账目", "预览账目" -> 3
+                            null -> 0
+                            "导出账目", "导入账目", "导入结果", "数据与隐私" -> 2
+                            else -> 1
+                        }
+                        val direction=if(depth(targetState)<depth(initialState))-1 else 1
+                        (slideInHorizontally(tween(280)) { direction * it / 8 } + fadeIn(tween(220))) togetherWith
+                            (slideOutHorizontally(tween(280)) { -direction * it / 8 } + fadeOut(tween(160))) using
+                            SizeTransform(clip=false)
+                    },
+                    label="settings-navigation"
+                ) { page ->
+                pageStateHolder.SaveableStateProvider(page ?: "root") {
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
+                    page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
+                    page=="管理权限"->PermissionsScreen(::notifyPermission)
+                    page=="关于"->AboutScreen {settingsPage="数据与隐私"}
+                    page=="数据与隐私"->DataPrivacyScreen()
+                    page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{vm.importPreview.value=null;settingsPage="导入账目"},{settingsPage="导出账目"})
+                    page=="导出账目"->ExportSelectionScreen(data.entries,busy||!data.ready,{vm.exportPreview=it;settingsPage="预览账目"},::export)
+                    page=="预览账目"->ExportPreviewScreen(vm.exportPreview)
+                    page=="导入账目"->ImportFileScreen(preview,busy,{
+                        importFile.launch(arrayOf("*/*"))
+                    },{settingsPage="无法导入的账目"},{settingsPage="跳过的账目"}) {
+                        preview?.let { selected -> vm.task {
+                            val outcome=vm.repository.commitImport(selected)
+                            if(outcome.added>0) {
+                                vm.importOutcome.value=outcome
+                                vm.importedMonth=selected.rows.filter{it.state=="valid"}.mapNotNull{it.entry?.dateEpochDay}
+                                    .maxOrNull()?.let{YearMonth.from(LocalDate.ofEpochDay(it))}
+                                settingsPage="导入结果"
+                            } else vm.importPreview.value=selected.copy(rows=selected.rows.map {
+                                if(it.state=="valid")it.copy(state="duplicate") else it
+                            })
+                        } }
+                    }
+                    page in listOf("无法导入的账目","跳过的账目")->preview?.let { ImportReasonsScreen(it,page=="跳过的账目") }
+                    page=="导入结果"->ImportResultScreen(importOutcome,{vm.importPreview.value=null;settingsPage="导入账目"}) {
+                        settingsPage=null;tab=Destination.BILLS;change(filter.copy(month=vm.importedMonth ?: filter.month,day=null,type=null,category=null))
+                    }
+                    page==null && tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{settingsPage="数据导入与导出"},{settingsPage="关于"})
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
-                    appearanceOpen->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
-                    tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{sheet="csv"},{sheet="text"},
+                    tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{sheet="text"},
                         {sheet="budget"},{tab=Destination.PLANS})
                     tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
-                    tab==Destination.PLANS->PaymentsScreen(data,notifications,exact,::notifyPermission,::exactPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
-                        {confirmReminder=true},{sheet="record-plan:${it.id}"},{sheet="plan:new"})
-                    tab==Destination.SETTINGS->SettingsScreen({appearanceOpen=true},{confirmDemo=true},{sheet="csv"},::notifyPermission,notifications)
+                    tab==Destination.PLANS->PaymentsScreen(data,notifications,::notifyPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
+                        {sheet="record-plan:${it.id}"},{sheet="plan:new"})
+                }
+                }
                 }
                 if(busy&&sheet==null)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
               }
             }
         }
-        if(confirmDemo) AlertDialog(onDismissRequest={confirmDemo=false},icon={Icon(Icons.Outlined.School,null)},title={Text("载入校园示例数据")},
-            text={Text("添加 20 笔虚构记录，均标注“示例”，用于查看六个月的收支趋势。当前月支出 ¥205.40、收入 ¥2500.00。保留已有账目，仅可载入一次。")},
-            confirmButton={TextButton({vm.seedDemo();change(FilterSpec());confirmDemo=false}){Text("载入示例")}},dismissButton={TextButton({confirmDemo=false}){Text("返回")}})
-        if(confirmReminder) AlertDialog(onDismissRequest={confirmReminder=false},title={Text("创建通知验收计划")},text={Text("创建一条 1 分钟后到期的 ¥0.01 待缴示例。请开启系统通知，允许精确提醒后可更准确地验收。退出到桌面观察真实系统通知。")},
-            confirmButton={TextButton({vm.savePlan(PaymentPlan(name="通知验收（示例）",amountCents=1,dueAt=System.currentTimeMillis()+60_000));confirmReminder=false}){Text("创建计划")}},dismissButton={TextButton({confirmReminder=false}){Text("返回")}})
-
-        if(sheet!=null&&data.ready) ModalBottomSheet(onDismissRequest={if(!busy)sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
+        val activeSheet = sheet
+        if(activeSheet!=null&&data.ready) ModalBottomSheet(onDismissRequest={if(!busy)sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
             containerColor=MaterialTheme.colorScheme.surface,dragHandle={BottomSheetDefaults.DragHandle()}) {
-            key(sheet) {
-                val route=sheet!!
+            key(activeSheet) {
+                val route=activeSheet
                 val close:()->Unit={sheet=null}
                 when {
                     route.startsWith("entry:")||route.startsWith("record-plan:")||route=="parsed"->{
@@ -217,60 +280,16 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                         val original=data.entries.firstOrNull{it.id==id}
                         val plan=if(route.startsWith("record-plan:"))data.plans.firstOrNull{it.id.toString()==id} else null
                         EntryEditor(original,EntryDates.defaultDate(filter,today),busy,
-                            {entry,done->vm.saveEntry(entry){val date=LocalDate.ofEpochDay(entry.dateEpochDay);change(filter.copy(month=YearMonth.from(date),day=if(filter.day!=null)date else null,type=null,category=null));done()}},close,vm::deleteEntry,
+                            {entry,done->vm.saveEntry(entry,original!=null){val date=LocalDate.ofEpochDay(entry.dateEpochDay);change(filter.copy(month=YearMonth.from(date),day=if(filter.day!=null)date else null,type=null,category=null));done()}},close,vm::deleteEntry,
                             raw=if(route=="parsed")rawText else "",parsed=if(route=="parsed")CampusParser.parse(rawText,LocalDate.now()) else null,prefill=plan)
                     }
                     route=="budget"->BudgetEditor(filter.month,data.budget(filter.month),busy){vm.setBudget(filter.month,it,close)}
                     route.startsWith("plan:")->PaymentEditor(data.plans.firstOrNull{it.id.toString()==route.substringAfter(':')},busy){vm.savePlan(it,close)}
                     route=="review"->ReviewEditor(filter.month,data,busy,{vm.saveReview(it,close)},{code->change(filter.copy(day=null,category=code,type=if(code==null)null else "expense"));tab=Destination.BILLS;close()})
-                    route=="csv"->CsvMenu(busy,{sheet=null;importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
-                    route=="import-preview"->preview?.let{ImportPreviewSheet(it,busy){keep->vm.task{val outcome=vm.repository.commitImport(it,keep);vm.importPreview.value=null;sheet="import-result:${outcome.added}:${outcome.skipped}:${outcome.invalid}"}}}
-                        ?:EmptyState("预览已经关闭","请重新选择 CSV 文件。")
-                    route.startsWith("import-result:")->ImportResultSheet(route.split(':').drop(1).map{it.toInt()},close){sheet=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))}
                     route=="text"->TextEntrySheet(rawText,{rawText=it}){keyboard?.hide();sheet="parsed"}
                 }
             }
         }
-    }
-}
-
-@Composable private fun CsvMenu(busy:Boolean,onImport:()->Unit,onAll:()->Unit,onFiltered:()->Unit) {
-    Column(Modifier.fillMaxWidth().padding(20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Text("导入与导出",style=MaterialTheme.typography.headlineSmall)
-        Subtitle("通过系统文件选择器导入或导出 UTF-8 CSV。只包含账目，预算、计划与回顾不随文件转移。")
-        PrimaryButton("选择文件并预览导入",!busy,onClick=onImport)
-        OutlinedButton(onAll,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Icon(Icons.Outlined.FileDownload,null);Spacer(Modifier.width(8.dp));Text("导出全部账目")}
-        OutlinedButton(onFiltered,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Text("导出当前筛选账目")}
-        Panel {Text("CSV 文件格式",style=MaterialTheme.typography.titleMedium);Text("id,type,amount,date,category,note,customCategory,transactionTime,transactionZone",style=MaterialTheme.typography.bodyMedium);Subtitle("type：expense / income\namount：元，正数，最多两位小数\ndate：YYYY-MM-DD\ncategory：应用预设类别\nid：1～80 位字母、数字、短横线或下划线\n兼容旧版六列和七列文件；transactionTime 为可选 HH:mm，transactionZone 为发生时的时区。\ncustomCategory 为其他的自填名称，最多 20 字。\n备注最多 200 字，最多 10000 条、2 MB。")}
-        Spacer(Modifier.height(12.dp))
-    }
-}
-
-@Composable private fun ImportPreviewSheet(preview:ImportPreview,busy:Boolean,onConfirm:(Boolean)->Unit) {
-    var keep by rememberSaveable{mutableStateOf(false)}
-    EditorFrame("导入预览",preview.filename,busy,"确认导入 ${preview.valid+if(keep)preview.suspicious else 0} 笔",{onConfirm(keep)}) {
-        Panel {
-            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Column(Modifier.weight(1f)){Text("${preview.valid}",style=MaterialTheme.typography.headlineSmall);Subtitle("校验通过")};Column(Modifier.weight(1f)){Text("${preview.duplicate}",style=MaterialTheme.typography.headlineSmall);Subtitle("确定重复")}}
-            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Column(Modifier.weight(1f)){Text("${preview.suspicious}",style=MaterialTheme.typography.headlineSmall);Subtitle("疑似重复")};Column(Modifier.weight(1f)){Text("${preview.invalid}",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.error);Subtitle("无效记录")}}
-        }
-        if(preview.suspicious>0) Row(Modifier.fillMaxWidth().clickable{keep=!keep},verticalAlignment=Alignment.CenterVertically){Checkbox(keep,{keep=it});Text("保留疑似重复为独立真实消费",style=MaterialTheme.typography.bodyMedium)}
-        Subtitle("确定重复会跳过且不覆盖。以下展示前 100 条，最终按全部 ${preview.rows.size} 条执行。")
-        preview.rows.take(100).forEach{row->Panel{
-            Tag("第 ${row.ordinal} 条 · ${when(row.state){"valid"->"可导入";"duplicate"->"重复";"suspicious"->"需核对";else->"无效"}}",if(row.state=="invalid")MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-            row.entry?.let{e->Text("${e.customCategory.ifBlank { categoryName(e.categoryCode) }} · ${if(e.type=="income")"收入" else "支出"} ¥${e.amountCents.money()}",style=MaterialTheme.typography.titleMedium);Subtitle("${LocalDate.ofEpochDay(e.dateEpochDay)} · ${e.note}")}
-            if(row.raw.isNotBlank())Subtitle(row.raw.take(220))
-            Subtitle(row.message)
-        }}
-    }
-}
-
-@Composable private fun ImportResultSheet(values:List<Int>,onClose:()->Unit,onView:()->Unit) {
-    Column(Modifier.fillMaxWidth().padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Icon(Icons.Outlined.TaskAlt,null,tint=MaterialTheme.colorScheme.secondary,modifier=Modifier.size(42.dp))
-        Text("导入结果",style=MaterialTheme.typography.headlineSmall)
-        Panel{Text("成功导入 ${values[0]} 笔",style=MaterialTheme.typography.titleLarge);Subtitle("跳过重复 ${values[1]} 笔 · 无效记录 ${values[2]} 笔");Subtitle("新账目会按文件中的日期显示，可切换月份查看。预算、计划与回顾未改变。")}
-        PrimaryButton("前往账单",onClick=onView)
-        TextButton(onClose,Modifier.fillMaxWidth()){Text("完成")}
     }
 }
 
@@ -282,24 +301,41 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
 }
 
-@Composable private fun SettingsScreen(onAppearance:()->Unit,onDemo:()->Unit,onCsv:()->Unit,onNotify:()->Unit,notifications:Boolean) {
-    Column(Modifier.fillMaxSize().padding(horizontal=20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Subtitle("航小账 1.0")
+@Composable private fun SettingsScreen(onAppearance:()->Unit,onPermissions:()->Unit,onCsv:()->Unit,onAbout:()->Unit) {
+    Column(Modifier.fillMaxSize().padding(20.dp).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Panel { SettingsAction(Icons.Outlined.Palette,"外观",onAppearance) }
-        Panel {Text("数据与提醒",style=MaterialTheme.typography.titleMedium)
-            SettingsAction(Icons.Outlined.NotificationsNone,if(notifications)"通知已开启 · 管理通知" else "开启系统通知",onNotify)
-            SettingsAction(Icons.Outlined.ImportExport,"CSV 导入与导出",onCsv)
-            SettingsAction(Icons.Outlined.School,"载入校园示例数据",onDemo)
+        Panel { SettingsAction(Icons.Outlined.AdminPanelSettings,"管理权限",onPermissions) }
+        Panel { SettingsAction(Icons.Outlined.ImportExport,"数据导入与导出",onCsv) }
+        Panel { SettingsAction(Icons.Outlined.Info,"关于",onAbout) }
+    }
+}
+
+@Composable private fun PermissionsScreen(onNotify:()->Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        Panel {
+            SettingsAction(Icons.Outlined.NotificationsNone,"通知权限",onNotify)
         }
-        Panel {Text("数据存储",style=MaterialTheme.typography.titleMedium)
-            Subtitle("账目、预算、计划和回顾均保存于本机，无需注册。卸载会删除本地数据；建议定期导出账目。CSV 不包含预算、计划和回顾。")
-            Subtitle("缴费计划不会自动入账。通知权限用于到期提醒，精确提醒授权用于准时送达，开机权限用于恢复计划；文件由系统选择器授权。系统强行停止后需重新打开应用恢复提醒。")
+
+    }
+}
+
+@Composable private fun AboutScreen(onPrivacy:()->Unit) {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        Panel { SettingsAction(Icons.Outlined.PrivacyTip,"数据与隐私",onPrivacy) }
+    }
+}
+
+@Composable private fun DataPrivacyScreen() {
+    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+        Panel {
+            Row(horizontalArrangement=Arrangement.spacedBy(14.dp),verticalAlignment=Alignment.Top) {
+                Icon(Icons.Outlined.PrivacyTip,null,tint=MaterialTheme.colorScheme.primary)
+                Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+                    Text("账目、预算、缴费计划和月度/年度回顾保存在本机，卸载应用会删除这些数据。",style=MaterialTheme.typography.bodyLarge)
+                    Text("请提前导出需要保存的账目，导出内容不包含预算、缴费计划和月度/年度回顾。",style=MaterialTheme.typography.bodyLarge)
+                }
+            }
         }
-        Panel {Text("示例与开源参考",style=MaterialTheme.typography.titleMedium)
-            Subtitle("所有示例记录均为项目自制虚构数据，不代表北航实际价格。应用不连接银行、支付账户或校园平台。消费回顾与文本录入均采用本地规则，无模型调用或费用。")
-            Subtitle("功能与架构参考 MoneyBook（MIT，AndersOnLin4）及 AutoAccounting（GPL-3.0，AutoAccountingOrg）。本应用独立实现，来源说明见项目文档。")
-        }
-        Spacer(Modifier.height(24.dp))
     }
 }
 

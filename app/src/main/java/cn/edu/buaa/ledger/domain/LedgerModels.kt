@@ -36,7 +36,6 @@ data class ImportRow(val ordinal: Int, val entry: TransactionEntity?, val state:
 data class ImportPreview(val hash: String, val filename: String, val rows: List<ImportRow>) {
     val valid get() = rows.count { it.state == "valid" }
     val duplicate get() = rows.count { it.state == "duplicate" }
-    val suspicious get() = rows.count { it.state == "suspicious" }
     val invalid get() = rows.count { it.state == "invalid" }
 }
 data class ImportOutcome(val added: Int, val skipped: Int, val invalid: Int)

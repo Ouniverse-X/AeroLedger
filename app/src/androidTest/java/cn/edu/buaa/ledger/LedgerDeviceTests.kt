@@ -53,16 +53,59 @@ class LedgerDeviceTests {
                 "bad,expense,-5,2026-11-04,餐饮,错误\n"+
                 "bad2,expense,2,2026-02-30,交通,错误\n"
             val p=repo.previewCsv(csv,"test.csv")
-            assertEquals(1,p.valid);assertEquals(1,p.duplicate);assertEquals(1,p.suspicious);assertEquals(2,p.invalid)
+            assertEquals(2,p.valid);assertEquals(1,p.duplicate);assertEquals(2,p.invalid)
             assertTrue(repo.dao.transactions().isEmpty())
-            val result=repo.commitImport(p,false);assertEquals(1,result.added);assertEquals(2,result.skipped)
-            val again=repo.commitImport(repo.previewCsv(csv,"test.csv"),false);assertEquals(0,again.added)
-            val kept=repo.commitImport(repo.previewCsv(csv,"test.csv"),true);assertEquals(1,kept.added)
+            val result=repo.commitImport(p);assertEquals(2,result.added);assertEquals(1,result.skipped)
+            val again=repo.commitImport(repo.previewCsv(csv,"test.csv"));assertEquals(0,again.added)
+            val kept=repo.commitImport(repo.previewCsv(csv,"test.csv"));assertEquals(0,kept.added)
             assertEquals(2,repo.dao.transactions().size)
             val roundtrip=CsvCodec.encode(repo.dao.transactions().map{it.toEntry()})
             assertEquals(2,repo.previewCsv(roundtrip,"export.csv").duplicate)
             try {repo.previewCsv("id,type,amount,date,category,note\nx,expense,1,2026-11-04,餐饮,\"broken","bad.csv");fail("accepted broken CSV")}
             catch(_:IllegalArgumentException){assertEquals(2,repo.dao.transactions().size)}
+        }
+    }
+
+    @Test fun importNumbersRecordsWithoutHeaderOrMultilineNote()=runBlocking {
+        withDb { repo ->
+            val csv="id,type,amount,date,category,note\n"+
+                "first,expense,12,2026-11-18,餐饮,\"午餐\n食堂\"\n"+
+                "bad,expense,abc,2026-11-18,餐饮,金额异常\n"
+            val preview=repo.previewCsv(csv,"numbering.csv")
+            assertEquals(listOf(1,2),preview.rows.map{it.ordinal})
+            assertEquals("invalid",preview.rows[1].state)
+        }
+    }
+
+    @Test fun importKeepsDifferentIdsWithoutOverwriting()=runBlocking {
+        withDb { repo ->
+            val csv="id,type,amount,date,category,note\noriginal,expense,12.50,2026-11-04,餐饮,午餐\na,expense,12.50,2026-11-04,餐饮,午餐\nb,expense,12.50,2026-11-04,餐饮,午餐\n"
+            val preview=repo.previewCsv(csv,"test.csv")
+            assertEquals(3,preview.valid)
+            assertEquals(3,repo.commitImport(preview).added)
+            assertEquals(setOf("original","a","b"),repo.dao.transactions().map{it.id}.toSet())
+            assertEquals(0,repo.commitImport(repo.previewCsv(csv,"test.csv")).added)
+            assertEquals(3,repo.dao.transactions().size)
+        }
+    }
+
+    @Test fun newEntryCollisionPreservesExistingAndTimeRoundTrips()=runBlocking {
+        withDb { repo ->
+            val old=TransactionEntity("collision","expense",1250,LocalDate.now().toEpochDay(),"food","午餐",transactionTime="12:35",transactionZone="Asia/Shanghai")
+            assertEquals(old.id,repo.createEntry(old))
+            val newId=repo.createEntry(old.copy(note="另一笔"))
+            assertNotEquals(old.id,newId)
+            java.util.UUID.fromString(newId)
+            assertEquals("午餐",repo.dao.transaction(old.id)?.note)
+            assertEquals("另一笔",repo.dao.transaction(newId)?.note)
+            val csv=CsvCodec.encode(repo.dao.transactions().map{it.toEntry()})
+            withDb { target ->
+                val preview=target.previewCsv(csv,"timed.csv")
+                assertEquals(2,target.commitImport(preview).added)
+                assertEquals("12:35",target.dao.transaction(newId)?.transactionTime)
+                assertEquals("Asia/Shanghai",target.dao.transaction(newId)?.transactionZone)
+                assertEquals(0,target.commitImport(target.previewCsv(csv,"again.csv")).added)
+            }
         }
     }
 
@@ -105,15 +148,27 @@ class LedgerDeviceTests {
         }finally{db.close();app.deleteDatabase(legacyName)}
     }
 
+    @Test fun notificationChannelsAreCheckedIndependently() {
+        val manager=app.getSystemService(NotificationManager::class.java)
+        val enabled="test-enabled-"+java.util.UUID.randomUUID()
+        val disabled="test-disabled-"+java.util.UUID.randomUUID()
+        try {
+            manager.createNotificationChannel(android.app.NotificationChannel(enabled,"Test enabled",NotificationManager.IMPORTANCE_DEFAULT))
+            manager.createNotificationChannel(android.app.NotificationChannel(disabled,"Test disabled",NotificationManager.IMPORTANCE_NONE))
+            assertTrue(cn.edu.buaa.ledger.reminder.NotificationAccess.allowed(app,enabled))
+            assertFalse(cn.edu.buaa.ledger.reminder.NotificationAccess.allowed(app,disabled))
+            assertTrue(cn.edu.buaa.ledger.reminder.NotificationAccess.allowed(app,enabled))
+        } finally { manager.deleteNotificationChannel(enabled);manager.deleteNotificationChannel(disabled) }
+    }
+
     @Test fun realAlarmNotificationAndCancellation()=runBlocking {
         app.ensureInitialized()
         assertTrue("Grant notification permission before device tests",PaymentReminders.allowed(app))
-        assertTrue("Allow exact alarms before device tests",PaymentReminders.exactAllowed(app))
         val repo=app.repository;val manager=app.getSystemService(NotificationManager::class.java)
         val before=repo.dao.transactions().size
         val id=repo.savePlan(PaymentPlan(name="自动测试（示例）",amountCents=1,dueAt=System.currentTimeMillis()+2500))
         fun visible()=manager.activeNotifications.any{it.tag=="payment-$id"}
-        suspend fun waitDelivered(){withTimeout(20000){while(repo.dao.plan(id)!!.needsReminder)delay(200)}}
+        suspend fun waitDelivered(){withTimeout(90000){while(repo.dao.plan(id)!!.needsReminder)delay(200)}}
         suspend fun waitVisible(expected:Boolean){withTimeout(5000){while(visible()!=expected)delay(50)}}
         try {
             waitDelivered();waitVisible(true);assertTrue(visible())

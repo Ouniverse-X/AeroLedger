@@ -21,12 +21,7 @@ object PaymentReminders {
         context.getSystemService(NotificationManager::class.java).createNotificationChannel(
             NotificationChannel(CHANNEL, "校园缴费提醒", NotificationManager.IMPORTANCE_HIGH).apply { description = "到期提醒待缴项目，不自动记账" })
     }
-    fun allowed(context: Context): Boolean {
-        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
-        val manager = context.getSystemService(NotificationManager::class.java)
-        return manager.areNotificationsEnabled() && manager.getNotificationChannel(CHANNEL)?.importance != NotificationManager.IMPORTANCE_NONE
-    }
-    fun exactAllowed(context: Context) = Build.VERSION.SDK_INT < 31 || context.getSystemService(AlarmManager::class.java).canScheduleExactAlarms()
+    fun allowed(context: Context) = NotificationAccess.allowed(context, CHANNEL)
     private fun alarmIntent(context: Context, id: Long, revision: Long = 0): PendingIntent {
         val intent = Intent(context, PaymentReceiver::class.java).setData(Uri.parse("buaa-ledger://payment/$id"))
             .putExtra("plan_id", id).putExtra("revision", revision)
@@ -42,12 +37,9 @@ object PaymentReminders {
         val manager = context.getSystemService(AlarmManager::class.java)
         val time = maxOf(plan.dueAt, System.currentTimeMillis() + 1500)
         val pending = alarmIntent(context, plan.id, plan.revision)
-        try {
-            if (exactAllowed(context)) manager.setExactAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pending)
-            else manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pending)
-        } catch (_: SecurityException) { manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pending) }
+        manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pending)
     }
-    suspend fun restore(context: Context) {
+    suspend fun restore(context: Context) = withContext(Dispatchers.IO) {
         val app = context.applicationContext as LedgerApp
         app.ensureInitialized()
         val repo = app.repository
@@ -95,8 +87,16 @@ class PaymentReceiver : BroadcastReceiver() {
 }
 class RestoreReceiver : BroadcastReceiver() {
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED,
-                AlarmManager.ACTION_SCHEDULE_EXACT_ALARM_PERMISSION_STATE_CHANGED))
+        if (intent.action in setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_TIME_CHANGED, Intent.ACTION_TIMEZONE_CHANGED))
             PaymentReminders.receive(this, context) { PaymentReminders.restore(context) }
+    }
+}
+
+/** Checks only the channel used by the operation, without treating sibling channels as a global permission. */
+object NotificationAccess {
+    fun allowed(context: Context, channel: String): Boolean {
+        if (Build.VERSION.SDK_INT >= 33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) return false
+        val manager = context.getSystemService(NotificationManager::class.java)
+        return manager.areNotificationsEnabled() && manager.getNotificationChannel(channel)?.importance != NotificationManager.IMPORTANCE_NONE
     }
 }

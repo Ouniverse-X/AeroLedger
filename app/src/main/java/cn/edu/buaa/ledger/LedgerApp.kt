@@ -13,5 +13,8 @@ class LedgerApp : Application() {
     suspend fun ensureInitialized() = initialization.withLock {
         if (!ready) { repository.initialize(); ready = true }
     }
-    override fun onCreate() { super.onCreate(); PaymentReminders.createChannel(this) }
+    override fun onCreate() { super.onCreate(); PaymentReminders.createChannel(this)
+        getSystemService(android.app.NotificationManager::class.java).createNotificationChannel(
+            android.app.NotificationChannel("capture", "账单截图", android.app.NotificationManager.IMPORTANCE_LOW))
+    }
 }
