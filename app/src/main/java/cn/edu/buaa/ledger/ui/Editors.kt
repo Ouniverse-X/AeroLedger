@@ -181,6 +181,7 @@ import java.util.UUID
             onSave(PaymentPlan(plan?.id?:0,name,cents,at,status=status,reminderEnabled=enabled))
         }catch(e:Exception){error=e.message?:"请检查日期、时间和金额"}
     }) {
+        if(!cn.edu.buaa.ledger.reminder.PaymentReminders.allowed(context)) FieldError("通知未开启，无法发送缴费到期提醒。可在设置中管理通知。")
         OutlinedTextField(name,{name=it.take(40);error=null},Modifier.fillMaxWidth(),label={Text("缴费项目")},placeholder={Text("例如：宿舍电费")},singleLine=true,shape=RoundedCornerShape(14.dp))
         OutlinedTextField(amount,{amount=it.take(12);error=null},Modifier.fillMaxWidth(),label={Text("金额（元）")},prefix={Text("¥ ")},singleLine=true,keyboardOptions=KeyboardOptions(keyboardType=KeyboardType.Decimal),shape=RoundedCornerShape(14.dp))
         OutlinedTextField(date,{date=it.take(10);error=null},Modifier.fillMaxWidth(),label={Text("到期日期")},singleLine=true,shape=RoundedCornerShape(14.dp),trailingIcon={IconButton({

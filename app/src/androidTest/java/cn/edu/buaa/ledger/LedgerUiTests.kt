@@ -67,12 +67,11 @@ class LedgerUiTests {
         compose.onNodeWithText("示例与开源参考").assertDoesNotExist()
         compose.onNodeWithText("管理权限").performClick()
         compose.onNodeWithText("通知").assertIsDisplayed()
+        compose.onNodeWithText("用于截屏结果通知和缴费到期提醒。").assertDoesNotExist()
         compose.onNodeWithText("精确提醒").assertDoesNotExist()
-        compose.onNodeWithText("用于截屏结果通知和缴费到期提醒。").assertIsDisplayed()
         compose.onNodeWithTag("nav-BILLS").assertDoesNotExist()
         compose.activityRule.scenario.recreate()
         compose.onNodeWithText("精确提醒").assertDoesNotExist()
-        compose.onNodeWithText("用于截屏结果通知和缴费到期提醒。").assertIsDisplayed()
         compose.onNodeWithTag("settings-back").performClick()
         compose.onNodeWithText("关于").performClick()
         compose.onNodeWithText(BuildConfig.VERSION_NAME).assertIsDisplayed()
@@ -88,6 +87,20 @@ class LedgerUiTests {
         compose.onNodeWithTag("nav-SETTINGS").assertIsSelected()
         compose.onNodeWithTag("nav-PLANS").performClick()
         compose.onNodeWithText("创建 1 分钟通知验收计划").assertDoesNotExist()
+    }
+
+    @Test fun notificationManagementOpensSystemSettingsDirectly() {
+        awaitNavigation()
+        androidx.test.espresso.intent.Intents.init()
+        try {
+            val settingsIntent=androidx.test.espresso.intent.matcher.IntentMatchers.hasAction(android.provider.Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+            androidx.test.espresso.intent.Intents.intending(settingsIntent)
+                .respondWith(android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_CANCELED,null))
+            compose.onNodeWithTag("nav-SETTINGS").performClick()
+            compose.onNodeWithText("管理权限").performClick()
+            compose.onNode(hasText("管理通知",substring=true) or hasText("允许通知",substring=true)).performClick()
+            androidx.test.espresso.intent.Intents.intended(settingsIntent)
+        } finally { androidx.test.espresso.intent.Intents.release() }
     }
 
     @Test fun appearanceSelectionPersistsAcrossRecreation() {

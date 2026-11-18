@@ -43,7 +43,7 @@ object PaymentReminders {
         val pending = alarmIntent(context, plan.id, plan.revision)
         manager.setAndAllowWhileIdle(AlarmManager.RTC_WAKEUP, time, pending)
     }
-    suspend fun restore(context: Context) {
+    suspend fun restore(context: Context) = withContext(Dispatchers.IO) {
         val app = context.applicationContext as LedgerApp
         app.ensureInitialized()
         val repo = app.repository

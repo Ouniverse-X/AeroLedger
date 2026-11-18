@@ -1,9 +1,10 @@
 package cn.edu.buaa.ledger.ui
 
 import android.Manifest
+import android.content.pm.PackageManager
+
 import android.app.AlarmManager
 import android.content.Intent
-import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.OpenableColumns
@@ -84,15 +85,17 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable fun LedgerRoot(vm:LedgerViewModel,openedPlan:Long?,clearPlan:()->Unit,onDark:(Boolean)->Unit) {
     val data by vm.data.collectAsStateWithLifecycle()
-    val theme by vm.theme.collectAsStateWithLifecycle()
-    val themeColor by vm.themeColor.collectAsStateWithLifecycle()
+    val appearance by vm.appearanceSettings.collectAsStateWithLifecycle()
+    val settings = appearance ?: return
+    val theme = settings.mode
+    val themeColor = settings.color
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
     BackHandler(settingsPage != null) { settingsPage=null }
     val busy by vm.busy.collectAsStateWithLifecycle()
     val startupError by vm.startupError.collectAsStateWithLifecycle()
     val preview by vm.importPreview.collectAsStateWithLifecycle()
     val dark=theme=="dark"||theme=="system"&&isSystemInDarkTheme()
-    SideEffect {onDark(dark)}
+    LaunchedEffect(dark) {onDark(dark)}
     var tab by rememberSaveable {mutableStateOf(Destination.BILLS)}
     var filter by remember {mutableStateOf(vm.filter)}
     fun change(next:FilterSpec) {filter=next;vm.filter=next}
@@ -118,20 +121,33 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     var notifications by remember {mutableStateOf(PaymentReminders.allowed(context))}
     val lifecycle=LocalLifecycleOwner.current.lifecycle
     DisposableEffect(lifecycle) {
-        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME){notifications=PaymentReminders.allowed(context)}}
+        val observer=LifecycleEventObserver {_,event->if(event==Lifecycle.Event.ON_RESUME){
+            val current=PaymentReminders.allowed(context)
+            notifications=current
+        }}
         lifecycle.addObserver(observer);onDispose{lifecycle.removeObserver(observer)}
     }
     LaunchedEffect(Unit) {vm.messages.collect{snack.showSnackbar(it)}}
     LaunchedEffect(openedPlan,data.ready) {
         if(openedPlan!=null&&data.ready) {tab=Destination.PLANS;if(data.plans.any{it.id==openedPlan})sheet="plan:$openedPlan";clearPlan()}
     }
-    val permission=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {notifications=PaymentReminders.allowed(context);vm.restoreReminders()}
+    val firstNotificationRequest=rememberLauncherForActivityResult(ActivityResultContracts.RequestPermission()) {
+        notifications=PaymentReminders.allowed(context)
+        if(notifications) vm.restoreReminders()
+    }
+    LaunchedEffect(Unit) {
+        val preferences=context.getSharedPreferences("permissions",0)
+        if(!preferences.getBoolean("asked",false)) {
+            preferences.edit().putBoolean("asked",true).apply()
+            if(Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED)
+                firstNotificationRequest.launch(Manifest.permission.POST_NOTIFICATIONS)
+        }
+    }
     fun notifyPermission() {
-        if(Build.VERSION.SDK_INT>=33 && context.checkSelfPermission(Manifest.permission.POST_NOTIFICATIONS)!=PackageManager.PERMISSION_GRANTED &&
-            !context.getSharedPreferences("permissions",0).getBoolean("asked",false)) {
-            context.getSharedPreferences("permissions",0).edit().putBoolean("asked",true).apply();permission.launch(Manifest.permission.POST_NOTIFICATIONS)
-        } else runCatching{context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).putExtra(Settings.EXTRA_APP_PACKAGE,context.packageName))}
-            .onFailure{vm.messages.tryEmit("请在系统设置中允许航小账通知")}
+        runCatching {
+            context.startActivity(Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS)
+                .putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName))
+        }.onFailure { vm.messages.tryEmit("请在系统设置中允许航小账通知") }
     }
     val importFile=rememberLauncherForActivityResult(ActivityResultContracts.OpenDocument()) {uri->if(uri!=null) vm.task {
         val result=withContext(Dispatchers.IO) {
@@ -210,10 +226,11 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
               }
             }
         }
-        if(sheet!=null&&data.ready) ModalBottomSheet(onDismissRequest={if(!busy)sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
+        val activeSheet = sheet
+        if(activeSheet!=null&&data.ready) ModalBottomSheet(onDismissRequest={if(!busy)sheet=null},sheetState=rememberModalBottomSheetState(skipPartiallyExpanded=true),
             containerColor=MaterialTheme.colorScheme.surface,dragHandle={BottomSheetDefaults.DragHandle()}) {
-            key(sheet) {
-                val route=sheet!!
+            key(activeSheet) {
+                val route=activeSheet
                 val close:()->Unit={sheet=null}
                 when {
                     route.startsWith("entry:")||route.startsWith("record-plan:")||route=="parsed"->{
@@ -297,7 +314,6 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Panel {
             Text("通知",style=MaterialTheme.typography.titleMedium)
-            Subtitle("用于截屏结果通知和缴费到期提醒。")
             SettingsAction(Icons.Outlined.NotificationsNone,if(notifications)"已开启 · 管理通知" else "未开启 · 允许通知",onNotify)
         }
 

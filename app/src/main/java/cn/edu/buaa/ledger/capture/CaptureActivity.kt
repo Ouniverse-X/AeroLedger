@@ -22,16 +22,15 @@ class CaptureActivity : ComponentActivity() {
         } else CaptureStore(this).failure("已取消截图授权，没有新增账目。")
         finishAndRemoveTask()
     }
-    private val notifications = registerForActivityResult(ActivityResultContracts.RequestPermission()) { requestCapture() }
     override fun onCreate(state: Bundle?) {
         super.onCreate(state)
         authorizationPending = state?.getBoolean("authorizationPending") ?: false
         if (!authorizationPending) AlertDialog.Builder(this).setTitle("截取一张账单")
-            .setMessage("请先打开目标账单。授权后约 2 秒截取一帧，随后停止捕获。Android 14 及以上可选择目标应用。\n\n完成后点击通知，或回到图片记账页点击‘打开最近截图’。拒绝通知权限时仍可从页面打开结果。")
+            .setMessage((if (!androidx.core.app.NotificationManagerCompat.from(this).areNotificationsEnabled()) "通知未开启，截图完成后请回到图片记账页打开结果。\n\n" else "") + "请先打开目标账单。授权后约 2 秒截取一帧，随后停止捕获。Android 14 及以上可选择目标应用。\n\n完成后点击通知，或回到图片记账页点击‘打开最近截图’。拒绝通知权限时仍可从页面打开结果。")
             .setNegativeButton("取消") { _, _ -> finishAndRemoveTask() }
             .setPositiveButton("继续授权") { _, _ ->
                 authorizationPending = true
-                if (Build.VERSION.SDK_INT >= 33) notifications.launch(Manifest.permission.POST_NOTIFICATIONS) else requestCapture()
+                requestCapture()
             }.setOnCancelListener { finishAndRemoveTask() }.show()
     }
     override fun onSaveInstanceState(outState: Bundle) {

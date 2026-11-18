@@ -16,8 +16,10 @@ class LedgerViewModel(application: Application, private val saved: SavedStateHan
     val app = application as LedgerApp
     val repository = app.repository
     val appearance = AppearanceStore(application)
-    val theme = appearance.theme.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "system")
-    val themeColor = appearance.themeColor.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), "blue")
+    // Wait for persisted mode and color together; never render a default-colored frame on restart.
+    val appearanceSettings = appearance.settings
+        .map<AppearanceSettings, AppearanceSettings?> { it }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, null)
     val data = MutableStateFlow(LedgerData())
     val startupError = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
