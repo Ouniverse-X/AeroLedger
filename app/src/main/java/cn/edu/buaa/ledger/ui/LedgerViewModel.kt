@@ -37,7 +37,11 @@ class LedgerViewModel(application: Application, private val saved: SavedStateHan
     fun load() {
         loader?.cancel(); startupError.value = null
         loader = viewModelScope.launch {
-            try { app.ensureInitialized(); PaymentReminders.restore(app); repository.data.collect { data.value = it } }
+            try {
+                app.ensureInitialized()
+                restoreReminders()
+                repository.data.collect { data.value = it }
+            }
             catch (e: Exception) { if(e is CancellationException) throw e; startupError.value = "本地数据暂时无法读取：${e.message}" }
         }
     }

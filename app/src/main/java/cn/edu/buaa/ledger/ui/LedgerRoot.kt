@@ -209,17 +209,17 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                 ) { page ->
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
-                    !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
                     page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
                     page=="管理权限"->PermissionsScreen(::notifyPermission)
                     page=="关于"->AboutScreen()
                     page=="数据导入与导出"->DataTransferScreen(busy,{importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
+                    page==null && tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{settingsPage="数据导入与导出"},{settingsPage="关于"})
+                    !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
                     tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{sheet="text"},
                         {sheet="budget"},{tab=Destination.PLANS})
                     tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
                     tab==Destination.PLANS->PaymentsScreen(data,notifications,::notifyPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
                         {sheet="record-plan:${it.id}"},{sheet="plan:new"})
-                    tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{settingsPage="关于"})
                 }
                 }
                 if(busy&&sheet==null)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))

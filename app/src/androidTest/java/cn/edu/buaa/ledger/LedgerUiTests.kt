@@ -89,6 +89,24 @@ class LedgerUiTests {
         compose.onNodeWithText("创建 1 分钟通知验收计划").assertDoesNotExist()
     }
 
+    @Test fun permissionPageDoesNotWaitForLedgerReload() {
+        awaitNavigation()
+        compose.onNodeWithTag("nav-SETTINGS").performClick()
+        compose.onNodeWithText("管理权限").performClick()
+        lateinit var model: cn.edu.buaa.ledger.ui.LedgerViewModel
+        compose.activityRule.scenario.onActivity {
+            model=androidx.lifecycle.ViewModelProvider(it)[cn.edu.buaa.ledger.ui.LedgerViewModel::class.java]
+        }
+        val loaded=model.data.value
+        try {
+            compose.runOnIdle { model.data.value=loaded.copy(ready=false) }
+            compose.onNodeWithText("通知权限").assertIsDisplayed()
+            compose.onNodeWithText("正在加载…").assertDoesNotExist()
+            compose.onNodeWithTag("settings-back").performClick()
+            compose.onNodeWithText("管理权限").assertIsDisplayed()
+        } finally { compose.runOnIdle { model.data.value=loaded } }
+    }
+
     @Test fun notificationManagementOpensSystemSettingsDirectly() {
         awaitNavigation()
         androidx.test.espresso.intent.Intents.init()
