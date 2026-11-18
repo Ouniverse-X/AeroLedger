@@ -105,6 +105,19 @@ class LedgerDeviceTests {
         }finally{db.close();app.deleteDatabase(legacyName)}
     }
 
+    @Test fun notificationChannelsAreCheckedIndependently() {
+        val manager=app.getSystemService(NotificationManager::class.java)
+        val enabled="test-enabled-"+java.util.UUID.randomUUID()
+        val disabled="test-disabled-"+java.util.UUID.randomUUID()
+        try {
+            manager.createNotificationChannel(android.app.NotificationChannel(enabled,"Test enabled",NotificationManager.IMPORTANCE_DEFAULT))
+            manager.createNotificationChannel(android.app.NotificationChannel(disabled,"Test disabled",NotificationManager.IMPORTANCE_NONE))
+            assertTrue(cn.edu.buaa.ledger.reminder.NotificationAccess.allowed(app,enabled))
+            assertFalse(cn.edu.buaa.ledger.reminder.NotificationAccess.allowed(app,disabled))
+            assertTrue(cn.edu.buaa.ledger.reminder.NotificationAccess.allowed(app,enabled))
+        } finally { manager.deleteNotificationChannel(enabled);manager.deleteNotificationChannel(disabled) }
+    }
+
     @Test fun realAlarmNotificationAndCancellation()=runBlocking {
         app.ensureInitialized()
         assertTrue("Grant notification permission before device tests",PaymentReminders.allowed(app))

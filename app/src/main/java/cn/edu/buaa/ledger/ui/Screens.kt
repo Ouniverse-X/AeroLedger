@@ -214,13 +214,6 @@ fun formatDue(at: Long) = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(Inst
         text={Text("${plan.name} · ¥${plan.amountCents.money()}\n将撤销提醒，不自动生成账目。如需记账，可点击“另记一笔”。")},
         confirmButton={TextButton({onChange(plan.copy(status="paid"));confirm=null}){Text("标记已缴")}},dismissButton={TextButton({confirm=null}){Text("返回")}}) }
     LazyColumn(contentPadding=PaddingValues(start=20.dp,end=20.dp,top=8.dp,bottom=110.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        item { Panel {
-            Row(verticalAlignment=Alignment.CenterVertically,horizontalArrangement=Arrangement.spacedBy(10.dp)) {
-                Icon(if(notifications)Icons.Outlined.NotificationsActive else Icons.Outlined.NotificationsOff,null,tint=MaterialTheme.colorScheme.primary)
-                Text(if(notifications)"系统通知已开启" else "系统通知未开启",style=MaterialTheme.typography.titleMedium)
-            }
-            if(!notifications) PrimaryButton("开启系统通知",onClick=onPermission)
-        } }
         item { Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) { Text("待缴计划 · ${pending.size} 项",style=MaterialTheme.typography.titleMedium);TextButton(onAdd) { Icon(Icons.Outlined.Add,null,Modifier.size(18.dp));Text("添加计划") } } }
         if(pending.isEmpty()) item { EmptyState("暂时没有待缴项目","点击“添加计划”新建缴费项目。",icon=Icons.Outlined.EventAvailable) }
         items(pending,key={it.id}) { plan -> PaymentCard(plan,onEdit,onChange,{confirm=it},onRecord,notifications) }
@@ -246,7 +239,7 @@ fun formatDue(at: Long) = DateTimeFormatter.ofPattern("MM-dd HH:mm").format(Inst
         }
         if(pending) {
             Row(Modifier.fillMaxWidth(),horizontalArrangement=Arrangement.SpaceBetween,verticalAlignment=Alignment.CenterVertically) {
-                Column(Modifier.weight(1f)) { Text("到期提醒",style=MaterialTheme.typography.bodyMedium);Subtitle(when { !plan.reminderEnabled->"此项目提醒已关闭";!notifications->"等待开启系统通知";plan.notifiedRevision==plan.revision->"已发送系统通知";else->"提醒已安排" }) }
+                Column(Modifier.weight(1f)) { Text("到期提醒",style=MaterialTheme.typography.bodyMedium);Subtitle(when { !plan.reminderEnabled->"此项目提醒已关闭";!notifications->"缴费通知未开启";plan.notifiedRevision==plan.revision->"已发送系统通知";else->"提醒已安排" }) }
                 Switch(plan.reminderEnabled,{onChange(plan.copy(reminderEnabled=it))})
             }
             Row(horizontalArrangement=Arrangement.spacedBy(10.dp)) {

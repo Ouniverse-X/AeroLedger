@@ -66,7 +66,7 @@ class LedgerUiTests {
         compose.onNodeWithText("数据存储").assertDoesNotExist()
         compose.onNodeWithText("示例与开源参考").assertDoesNotExist()
         compose.onNodeWithText("管理权限").performClick()
-        compose.onNodeWithText("通知").assertIsDisplayed()
+        compose.onNodeWithText("通知权限").assertIsDisplayed()
         compose.onNodeWithText("用于截屏结果通知和缴费到期提醒。").assertDoesNotExist()
         compose.onNodeWithText("精确提醒").assertDoesNotExist()
         compose.onNodeWithTag("nav-BILLS").assertDoesNotExist()
@@ -98,7 +98,7 @@ class LedgerUiTests {
                 .respondWith(android.app.Instrumentation.ActivityResult(android.app.Activity.RESULT_CANCELED,null))
             compose.onNodeWithTag("nav-SETTINGS").performClick()
             compose.onNodeWithText("管理权限").performClick()
-            compose.onNode(hasText("管理通知",substring=true) or hasText("允许通知",substring=true)).performClick()
+            compose.onNodeWithText("通知权限").performClick()
             androidx.test.espresso.intent.Intents.intended(settingsIntent)
         } finally { androidx.test.espresso.intent.Intents.release() }
     }

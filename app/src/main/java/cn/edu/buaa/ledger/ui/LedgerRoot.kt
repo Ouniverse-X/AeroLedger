@@ -211,7 +211,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
                     page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
-                    page=="管理权限"->PermissionsScreen(notifications,::notifyPermission)
+                    page=="管理权限"->PermissionsScreen(::notifyPermission)
                     page=="关于"->AboutScreen()
                     page=="数据导入与导出"->DataTransferScreen(busy,{importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
                     tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{sheet="text"},
@@ -310,11 +310,10 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
 }
 
-@Composable private fun PermissionsScreen(notifications:Boolean,onNotify:()->Unit) {
+@Composable private fun PermissionsScreen(onNotify:()->Unit) {
     Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Panel {
-            Text("通知",style=MaterialTheme.typography.titleMedium)
-            SettingsAction(Icons.Outlined.NotificationsNone,if(notifications)"已开启 · 管理通知" else "未开启 · 允许通知",onNotify)
+            SettingsAction(Icons.Outlined.NotificationsNone,"通知权限",onNotify)
         }
 
     }
