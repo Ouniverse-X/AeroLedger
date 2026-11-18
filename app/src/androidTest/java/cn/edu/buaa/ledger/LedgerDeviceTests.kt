@@ -66,6 +66,18 @@ class LedgerDeviceTests {
         }
     }
 
+    @Test fun importRestoresOnlySelectedRowsWithoutOverwriting()=runBlocking {
+        withDb { repo ->
+            val csv="id,type,amount,date,category,note\noriginal,expense,12.50,2026-11-04,餐饮,午餐\na,expense,12.50,2026-11-04,餐饮,午餐\nb,expense,12.50,2026-11-04,餐饮,午餐\n"
+            val preview=repo.previewCsv(csv,"test.csv")
+            assertEquals(1,preview.valid);assertEquals(2,preview.suspicious)
+            assertEquals(2,repo.commitImport(preview,false,setOf(3)).added)
+            assertEquals(setOf("original","a"),repo.dao.transactions().map{it.id}.toSet())
+            assertEquals(0,repo.commitImport(repo.previewCsv(csv,"test.csv"),false).added)
+            assertEquals(2,repo.dao.transactions().size)
+        }
+    }
+
     @Test fun persistentDatabaseReopens()=runBlocking {
         val name="persistence-device-test.db";app.deleteDatabase(name)
         try {

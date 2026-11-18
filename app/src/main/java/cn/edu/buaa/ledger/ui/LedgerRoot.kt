@@ -90,10 +90,15 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     val theme = settings.mode
     val themeColor = settings.color
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
-    BackHandler(settingsPage != null) { settingsPage=null }
+    fun backPage() { settingsPage=when(settingsPage) {
+        "导出选定账目", "导入账目", "导入结果" -> "数据导入与导出"
+        else -> null
+    } }
+    BackHandler(settingsPage != null) { backPage() }
     val busy by vm.busy.collectAsStateWithLifecycle()
     val startupError by vm.startupError.collectAsStateWithLifecycle()
     val preview by vm.importPreview.collectAsStateWithLifecycle()
+    val importOutcome by vm.importOutcome.collectAsStateWithLifecycle()
     val dark=theme=="dark"||theme=="system"&&isSystemInDarkTheme()
     LaunchedEffect(dark) {onDark(dark)}
     var tab by rememberSaveable {mutableStateOf(Destination.BILLS)}
@@ -112,7 +117,6 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     }
     var sheet by rememberSaveable {mutableStateOf<String?>(null)}
     var rawText by rememberSaveable {mutableStateOf("")}
-    var exportAll by rememberSaveable {mutableStateOf(true)}
     val snack=remember{SnackbarHostState()}
     val context=LocalContext.current
     val config=LocalConfiguration.current
@@ -159,21 +163,25 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             }?:error("无法读取所选文件")
             vm.repository.previewCsv(StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString(),name)
         }
-        vm.importPreview.value=result;sheet="import-preview"
+        vm.importPreview.value=result;settingsPage="导入账目"
     }}
     val exportFile=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {uri->if(uri!=null)vm.task {
-        val snapshot=if(exportAll)vm.data.value.entries else filter.select(vm.data.value.entries)
-        withContext(Dispatchers.IO){context.contentResolver.openOutputStream(uri,"wt")?.use{it.write(CsvCodec.encode(snapshot.map{it.toEntry()}).toByteArray(StandardCharsets.UTF_8))}?:error("无法写入所选位置")}
-        vm.messages.emit("已导出 ${snapshot.size} 笔账目")
+        val content=vm.pendingExport ?: error("请重新选择导出范围")
+        withContext(Dispatchers.IO){context.contentResolver.openOutputStream(uri,"wt")?.use{it.write(content.toByteArray(StandardCharsets.UTF_8))}?:error("无法写入所选位置")}
+        vm.pendingExport=null
+        vm.messages.emit("已导出账目")
     }}
-    fun export(all:Boolean) {exportAll=all;sheet=null;exportFile.launch("航小账-${if(all)"全部账目" else filter.label}.csv")}
+    fun export(entries:List<TransactionEntity>) {
+        vm.pendingExport=CsvCodec.encode(entries.map{it.toEntry()})
+        exportFile.launch("航小账-账目.csv")
+    }
 
     LedgerTheme(theme,themeColor) {
         Scaffold(containerColor=MaterialTheme.colorScheme.background,
             topBar={
                 Surface(color=MaterialTheme.colorScheme.primary,contentColor=MaterialTheme.colorScheme.onPrimary) {
                     Box(Modifier.fillMaxWidth().statusBarsPadding().height(if(landscape)44.dp else 56.dp),contentAlignment=Alignment.Center) {
-                        if(settingsPage != null) IconButton({settingsPage=null},Modifier.align(Alignment.CenterStart).testTag(if(settingsPage=="外观")"appearance-back" else "settings-back")) { Icon(Icons.Outlined.ArrowBack,"返回设置") }
+                        if(settingsPage != null) IconButton({backPage()},Modifier.align(Alignment.CenterStart).testTag(if(settingsPage=="外观")"appearance-back" else "settings-back")) { Icon(Icons.Outlined.ArrowBack,"返回设置") }
                         Text(settingsPage ?: tab.title,style=MaterialTheme.typography.titleLarge)
                     }
                 }
@@ -200,7 +208,12 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     targetState=settingsPage,
                     modifier=Modifier.fillMaxSize(),
                     transitionSpec={
-                        val direction=if(targetState==null)-1 else 1
+                        fun depth(page:String?)=when(page) {
+                            null -> 0
+                            "导出选定账目", "导入账目", "导入结果" -> 2
+                            else -> 1
+                        }
+                        val direction=if(depth(targetState)<depth(initialState))-1 else 1
                         (slideInHorizontally(tween(280)) { direction * it / 8 } + fadeIn(tween(220))) togetherWith
                             (slideOutHorizontally(tween(280)) { -direction * it / 8 } + fadeOut(tween(160))) using
                             SizeTransform(clip=false)
@@ -212,7 +225,15 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
                     page=="管理权限"->PermissionsScreen(::notifyPermission)
                     page=="关于"->AboutScreen()
-                    page=="数据导入与导出"->DataTransferScreen(busy,{importFile.launch(arrayOf("*/*"))},{export(true)},{export(false)})
+                    page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{importFile.launch(arrayOf("*/*"))},{settingsPage="导出选定账目"})
+                    page=="导出选定账目"->ExportSelectionScreen(data.entries,busy||!data.ready,::export)
+                    page=="导入账目"->preview?.let { selected -> ImportPreviewScreen(selected,busy) { restored -> vm.task {
+                        vm.importOutcome.value=vm.repository.commitImport(selected,false,restored)
+                        vm.importPreview.value=null;settingsPage="导入结果"
+                    } } } ?: Column(Modifier.padding(20.dp)) { Text("请重新选择文件");TextButton({settingsPage="数据导入与导出"}){Text("返回")} }
+                    page=="导入结果"->ImportResultScreen(importOutcome,{settingsPage="数据导入与导出"}) {
+                        settingsPage=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))
+                    }
                     page==null && tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{settingsPage="数据导入与导出"},{settingsPage="关于"})
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
                     tab==Destination.BILLS->BillsScreen(data,filter,::change,{sheet="entry:${it.id}"},{tab=Destination.SETTINGS;settingsPage="数据导入与导出"},{sheet="text"},
@@ -244,52 +265,10 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     route=="budget"->BudgetEditor(filter.month,data.budget(filter.month),busy){vm.setBudget(filter.month,it,close)}
                     route.startsWith("plan:")->PaymentEditor(data.plans.firstOrNull{it.id.toString()==route.substringAfter(':')},busy){vm.savePlan(it,close)}
                     route=="review"->ReviewEditor(filter.month,data,busy,{vm.saveReview(it,close)},{code->change(filter.copy(day=null,category=code,type=if(code==null)null else "expense"));tab=Destination.BILLS;close()})
-                    route=="import-preview"->preview?.let{ImportPreviewSheet(it,busy){keep->vm.task{val outcome=vm.repository.commitImport(it,keep);vm.importPreview.value=null;sheet="import-result:${outcome.added}:${outcome.skipped}:${outcome.invalid}"}}}
-                        ?:EmptyState("预览已经关闭","请重新选择 CSV 文件。")
-                    route.startsWith("import-result:")->ImportResultSheet(route.split(':').drop(1).map{it.toInt()},close){sheet=null;settingsPage=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))}
                     route=="text"->TextEntrySheet(rawText,{rawText=it}){keyboard?.hide();sheet="parsed"}
                 }
             }
         }
-    }
-}
-
-@Composable private fun DataTransferScreen(busy:Boolean,onImport:()->Unit,onAll:()->Unit,onFiltered:()->Unit) {
-    Column(Modifier.fillMaxSize().verticalScroll(rememberScrollState()).padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
-        Subtitle("通过系统文件选择器导入或导出 UTF-8 CSV。只包含账目，预算、计划与回顾不随文件转移。")
-        PrimaryButton("选择文件并预览导入",!busy,onClick=onImport)
-        OutlinedButton(onAll,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Icon(Icons.Outlined.FileDownload,null);Spacer(Modifier.width(8.dp));Text("导出全部账目")}
-        OutlinedButton(onFiltered,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=!busy){Text("导出当前筛选账目")}
-        Panel {Text("CSV 文件格式",style=MaterialTheme.typography.titleMedium);Text("id,type,amount,date,category,note,customCategory,transactionTime,transactionZone",style=MaterialTheme.typography.bodyMedium);Subtitle("type：expense / income\namount：元，正数，最多两位小数\ndate：YYYY-MM-DD\ncategory：应用预设类别\nid：1～80 位字母、数字、短横线或下划线\n兼容旧版六列和七列文件；transactionTime 为可选 HH:mm，transactionZone 为发生时的时区。\ncustomCategory 为其他的自填名称，最多 20 字。\n备注最多 200 字，最多 10000 条、2 MB。")}
-        Spacer(Modifier.height(12.dp))
-    }
-}
-
-@Composable private fun ImportPreviewSheet(preview:ImportPreview,busy:Boolean,onConfirm:(Boolean)->Unit) {
-    var keep by rememberSaveable{mutableStateOf(false)}
-    EditorFrame("导入预览",preview.filename,busy,"确认导入 ${preview.valid+if(keep)preview.suspicious else 0} 笔",{onConfirm(keep)}) {
-        Panel {
-            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Column(Modifier.weight(1f)){Text("${preview.valid}",style=MaterialTheme.typography.headlineSmall);Subtitle("校验通过")};Column(Modifier.weight(1f)){Text("${preview.duplicate}",style=MaterialTheme.typography.headlineSmall);Subtitle("确定重复")}}
-            Row(horizontalArrangement=Arrangement.spacedBy(12.dp)){Column(Modifier.weight(1f)){Text("${preview.suspicious}",style=MaterialTheme.typography.headlineSmall);Subtitle("疑似重复")};Column(Modifier.weight(1f)){Text("${preview.invalid}",style=MaterialTheme.typography.headlineSmall,color=MaterialTheme.colorScheme.error);Subtitle("无效记录")}}
-        }
-        if(preview.suspicious>0) Row(Modifier.fillMaxWidth().clickable{keep=!keep},verticalAlignment=Alignment.CenterVertically){Checkbox(keep,{keep=it});Text("保留疑似重复为独立真实消费",style=MaterialTheme.typography.bodyMedium)}
-        Subtitle("确定重复会跳过且不覆盖。以下展示前 100 条，最终按全部 ${preview.rows.size} 条执行。")
-        preview.rows.take(100).forEach{row->Panel{
-            Tag("第 ${row.ordinal} 条 · ${when(row.state){"valid"->"可导入";"duplicate"->"重复";"suspicious"->"需核对";else->"无效"}}",if(row.state=="invalid")MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary)
-            row.entry?.let{e->Text("${e.customCategory.ifBlank { categoryName(e.categoryCode) }} · ${if(e.type=="income")"收入" else "支出"} ¥${e.amountCents.money()}",style=MaterialTheme.typography.titleMedium);Subtitle("${LocalDate.ofEpochDay(e.dateEpochDay)} · ${e.note}")}
-            if(row.raw.isNotBlank())Subtitle(row.raw.take(220))
-            Subtitle(row.message)
-        }}
-    }
-}
-
-@Composable private fun ImportResultSheet(values:List<Int>,onClose:()->Unit,onView:()->Unit) {
-    Column(Modifier.fillMaxWidth().padding(24.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Icon(Icons.Outlined.TaskAlt,null,tint=MaterialTheme.colorScheme.secondary,modifier=Modifier.size(42.dp))
-        Text("导入结果",style=MaterialTheme.typography.headlineSmall)
-        Panel{Text("成功导入 ${values[0]} 笔",style=MaterialTheme.typography.titleLarge);Subtitle("跳过重复 ${values[1]} 笔 · 无效记录 ${values[2]} 笔");Subtitle("新账目会按文件中的日期显示，可切换月份查看。预算、计划与回顾未改变。")}
-        PrimaryButton("前往账单",onClick=onView)
-        TextButton(onClose,Modifier.fillMaxWidth()){Text("完成")}
     }
 }
 

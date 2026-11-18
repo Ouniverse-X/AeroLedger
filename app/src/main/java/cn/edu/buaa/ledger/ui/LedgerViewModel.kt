@@ -24,6 +24,8 @@ class LedgerViewModel(application: Application, private val saved: SavedStateHan
     val startupError = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    var pendingExport: String? = null
+    val importOutcome = MutableStateFlow<ImportOutcome?>(null)
     val importPreview = MutableStateFlow<ImportPreview?>(null)
     var filter: FilterSpec
         get() = FilterSpec(YearMonth.parse(saved["month"] ?: YearMonth.now().toString()),

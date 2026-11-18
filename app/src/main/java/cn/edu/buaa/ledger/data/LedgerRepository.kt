@@ -77,14 +77,14 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
         ImportPreview(hash, filename, rows)
     }
 
-    suspend fun commitImport(preview: ImportPreview, keepSuspicious: Boolean): ImportOutcome = database.withTransaction {
+    suspend fun commitImport(preview: ImportPreview, keepSuspicious: Boolean, restoredRows: Set<Int> = emptySet()): ImportOutcome = database.withTransaction {
         var added = 0; var skipped = 0
         val receipts = dao.receipts(preview.hash).map { it.ordinal }.toMutableSet()
         for (row in preview.rows) {
             val entry = row.entry
             if (entry == null) continue
             if (row.state == "duplicate" || row.ordinal in receipts || dao.transaction(entry.id) != null ||
-                row.state == "suspicious" && !keepSuspicious) { skipped++; continue }
+                row.state == "suspicious" && !keepSuspicious && row.ordinal !in restoredRows) { skipped++; continue }
             LedgerRules.validate(entry.toEntry())
             dao.saveTransaction(entry)
             dao.saveReceipt(ImportReceipt(preview.hash, row.ordinal, entry.id))
