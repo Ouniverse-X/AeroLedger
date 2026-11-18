@@ -17,6 +17,8 @@ def main():
         ["demo-import-lunch", "expense", "18.50", today, "餐饮", "午餐"],
         ["demo-import-metro", "expense", "4.00", today, "交通", "地铁"],
         ["demo-import-work", "income", "200.00", today, "兼职", "助教劳务"],
+        ["demo-import-book", "expense", "36.00", today, "学习", "购买书籍"],
+        ["demo-import-dinner", "expense", "22.00", today, "餐饮", "晚餐"],
     ]
     examples = {
         "01-normal.csv": normal,
@@ -26,6 +28,7 @@ def main():
             ["demo-mixed-same", "expense", "18.50", today, "餐饮", "午餐"],
             ["demo-mixed-invalid", "expense", "abc", today, "交通", "金额异常"],
             ["demo-mixed-book", "expense", "36.00", today, "学习", "购买书籍"],
+            ["demo-mixed-metro", "expense", "4.00", today, "交通", "地铁"],
         ],
         "03-invalid.csv": [
             ["demo-invalid-amount", "expense", "abc", today, "餐饮", "金额异常"],
@@ -40,8 +43,8 @@ def main():
             path = Path(directory) / name
             with path.open("w", encoding="utf-8-sig", newline="") as stream:
                 writer = csv.writer(stream)
-                writer.writerow(["id", "type", "amount", "date", "category", "note"])
-                writer.writerows(rows)
+                writer.writerow(["id", "type", "amount", "date", "category", "note", "customCategory", "transactionTime", "transactionZone"])
+                writer.writerows(row + ["", ["12:35", "18:10", "09:00"][index % 3], "Asia/Shanghai"] for index, row in enumerate(rows))
             subprocess.run(adb + ["push", str(path), f"{destination}/{name}"], check=True)
             subprocess.run(adb + ["shell", "am", "broadcast", "-a",
                                   "android.intent.action.MEDIA_SCANNER_SCAN_FILE", "-d",

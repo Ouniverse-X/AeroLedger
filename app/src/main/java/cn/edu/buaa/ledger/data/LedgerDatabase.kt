@@ -54,6 +54,7 @@ interface LedgerDao {
     @Query("SELECT * FROM transactions ORDER BY dateEpochDay DESC, transactionTime DESC, createdAt DESC") suspend fun transactions(): List<TransactionEntity>
     @Query("SELECT * FROM transactions WHERE id=:id") suspend fun transaction(id: String): TransactionEntity?
     @Upsert suspend fun saveTransaction(item: TransactionEntity)
+    @Insert(onConflict = OnConflictStrategy.IGNORE) suspend fun insertTransaction(item: TransactionEntity): Long
     @Query("DELETE FROM transactions WHERE id=:id") suspend fun deleteTransaction(id: String)
     @Upsert suspend fun saveBudget(item: BudgetEntity)
     @Query("SELECT * FROM monthly_budgets WHERE month=:month") suspend fun budget(month: String): BudgetEntity?

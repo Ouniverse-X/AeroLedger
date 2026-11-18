@@ -127,7 +127,7 @@ class RecognitionViewModel(application: Application, private val savedState: Sav
             try {
                 val app = getApplication<LedgerApp>()
                 app.ensureInitialized()
-                app.repository.saveEntry(entry)
+                app.repository.createEntry(entry)
                 val updated = current.change(entry.id) { it.copy(saved = true, selected = false) }
                 val next = updated.candidates.firstOrNull { it.selected && !it.saved }
                 update(updated.copy(activeId = next?.draft?.id, message = "已保存这一笔账目"))

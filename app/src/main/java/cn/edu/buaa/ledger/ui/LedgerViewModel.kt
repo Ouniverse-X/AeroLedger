@@ -24,6 +24,7 @@ class LedgerViewModel(application: Application, private val saved: SavedStateHan
     val startupError = MutableStateFlow<String?>(null)
     val busy = MutableStateFlow(false)
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
+    var exportPreview: List<TransactionEntity> = emptyList()
     var pendingExport: String? = null
     val importOutcome = MutableStateFlow<ImportOutcome?>(null)
     val importPreview = MutableStateFlow<ImportPreview?>(null)
@@ -58,7 +59,10 @@ class LedgerViewModel(application: Application, private val saved: SavedStateHan
     }
     fun changeThemeColor(value: String) { viewModelScope.launch { appearance.setThemeColor(value) } }
     fun changeTheme(value: String) { viewModelScope.launch { appearance.setTheme(value) } }
-    fun saveEntry(item: TransactionEntity, done: () -> Unit) = task { repository.saveEntry(item); messages.emit("账目已保存"); done() }
+    fun saveEntry(item: TransactionEntity, editing: Boolean, done: () -> Unit) = task {
+        if(editing) repository.saveEntry(item) else repository.createEntry(item)
+        messages.emit("账目已保存"); done()
+    }
     fun deleteEntry(id: String) = task { repository.dao.deleteTransaction(id); messages.emit("账目已删除，统计已更新") }
     fun setBudget(month: YearMonth, cents: Long, done: () -> Unit) = task { repository.setBudget(month, cents); messages.emit("预算已更新"); done() }
     fun savePlan(plan: PaymentPlan, done: () -> Unit = {}) = task {

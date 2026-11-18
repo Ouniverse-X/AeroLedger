@@ -90,10 +90,10 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     val theme = settings.mode
     val themeColor = settings.color
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
-    var restoredImportRows by rememberSaveable { mutableStateOf(listOf<Int>()) }
     fun backPage() { settingsPage=when(settingsPage) {
         "导出账目", "导入账目", "导入结果" -> "数据导入与导出"
         "无法导入的账目", "跳过的账目" -> "导入账目"
+        "预览账目" -> "导出账目"
         else -> null
     } }
     BackHandler(settingsPage != null) { backPage() }
@@ -165,7 +165,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
             }?:error("无法读取所选文件")
             vm.repository.previewCsv(StandardCharsets.UTF_8.newDecoder().decode(ByteBuffer.wrap(bytes)).toString(),name)
         }
-        vm.importPreview.value=result;restoredImportRows=emptyList();settingsPage="导入账目"
+        vm.importPreview.value=result;settingsPage="导入账目"
     }}
     val exportFile=rememberLauncherForActivityResult(ActivityResultContracts.CreateDocument("text/csv")) {uri->if(uri!=null)vm.task {
         val content=vm.pendingExport ?: error("请重新选择导出范围")
@@ -206,12 +206,13 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     }
                 }
               Box(Modifier.weight(1f).fillMaxHeight()) {
+                val pageStateHolder=androidx.compose.runtime.saveable.rememberSaveableStateHolder()
                 AnimatedContent(
                     targetState=settingsPage,
                     modifier=Modifier.fillMaxSize(),
                     transitionSpec={
                         fun depth(page:String?)=when(page) {
-                            "无法导入的账目", "跳过的账目" -> 3
+                            "无法导入的账目", "跳过的账目", "预览账目" -> 3
                             null -> 0
                             "导出账目", "导入账目", "导入结果" -> 2
                             else -> 1
@@ -223,23 +224,24 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     },
                     label="settings-navigation"
                 ) { page ->
+                pageStateHolder.SaveableStateProvider(page ?: "root") {
                 when {
                     startupError!=null->Column(Modifier.padding(20.dp)){EmptyState("暂时无法打开账本",startupError!!,"重试",vm::load,Icons.Outlined.ErrorOutline)}
                     page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
                     page=="管理权限"->PermissionsScreen(::notifyPermission)
                     page=="关于"->AboutScreen()
-                    page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{importFile.launch(arrayOf("*/*"))},{settingsPage="导出账目"})
-                    page=="导出账目"->ExportSelectionScreen(data.entries,busy||!data.ready,::export)
-                    page in listOf("导入账目","无法导入的账目","跳过的账目")->preview?.let { selected ->
-                        if(page=="导入账目") ImportPreviewScreen(selected,busy,restoredImportRows.toSet(),
-                            {settingsPage="无法导入的账目"},{settingsPage="跳过的账目"}) { vm.task {
-                                vm.importOutcome.value=vm.repository.commitImport(selected,false,restoredImportRows.toSet())
-                                settingsPage="导入结果"
-                            } }
-                        else ImportReasonsScreen(selected,page=="跳过的账目",restoredImportRows.toSet(),busy) { ordinal ->
-                            restoredImportRows=if(ordinal in restoredImportRows)restoredImportRows-ordinal else restoredImportRows+ordinal
-                        }
-                    } ?: Column(Modifier.padding(20.dp)) { Text("请重新选择文件");TextButton({settingsPage="数据导入与导出"}){Text("返回")} }
+                    page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{vm.importPreview.value=null;settingsPage="导入账目"},{settingsPage="导出账目"})
+                    page=="导出账目"->ExportSelectionScreen(data.entries,busy||!data.ready,{vm.exportPreview=it;settingsPage="预览账目"},::export)
+                    page=="预览账目"->ExportPreviewScreen(vm.exportPreview)
+                    page=="导入账目"->ImportFileScreen(preview,busy,{
+                        vm.importPreview.value=null;importFile.launch(arrayOf("*/*"))
+                    },{settingsPage="无法导入的账目"},{settingsPage="跳过的账目"}) {
+                        preview?.let { selected -> vm.task {
+                            vm.importOutcome.value=vm.repository.commitImport(selected)
+                            settingsPage="导入结果"
+                        } }
+                    }
+                    page in listOf("无法导入的账目","跳过的账目")->preview?.let { ImportReasonsScreen(it,page=="跳过的账目") }
                     page=="导入结果"->ImportResultScreen(importOutcome,{settingsPage="数据导入与导出"}) {
                         settingsPage=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))
                     }
@@ -250,6 +252,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     tab==Destination.STATISTICS->StatisticsScreen(data,filter,::change,{change(it);tab=Destination.BILLS},{sheet="review"})
                     tab==Destination.PLANS->PaymentsScreen(data,notifications,::notifyPermission,{sheet="plan:${it.id}"},{vm.savePlan(it)},
                         {sheet="record-plan:${it.id}"},{sheet="plan:new"})
+                }
                 }
                 }
                 if(busy&&sheet==null)LinearProgressIndicator(Modifier.fillMaxWidth().align(Alignment.TopCenter))
@@ -268,7 +271,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                         val original=data.entries.firstOrNull{it.id==id}
                         val plan=if(route.startsWith("record-plan:"))data.plans.firstOrNull{it.id.toString()==id} else null
                         EntryEditor(original,EntryDates.defaultDate(filter,today),busy,
-                            {entry,done->vm.saveEntry(entry){val date=LocalDate.ofEpochDay(entry.dateEpochDay);change(filter.copy(month=YearMonth.from(date),day=if(filter.day!=null)date else null,type=null,category=null));done()}},close,vm::deleteEntry,
+                            {entry,done->vm.saveEntry(entry,original!=null){val date=LocalDate.ofEpochDay(entry.dateEpochDay);change(filter.copy(month=YearMonth.from(date),day=if(filter.day!=null)date else null,type=null,category=null));done()}},close,vm::deleteEntry,
                             raw=if(route=="parsed")rawText else "",parsed=if(route=="parsed")CampusParser.parse(rawText,LocalDate.now()) else null,prefill=plan)
                     }
                     route=="budget"->BudgetEditor(filter.month,data.budget(filter.month),busy){vm.setBudget(filter.month,it,close)}

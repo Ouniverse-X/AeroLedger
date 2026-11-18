@@ -190,4 +190,31 @@ class LedgerUiTests {
         }
       }
     }
+    @Test fun importOpensPageBeforePickerAndExportPreviewKeepsFilters() {
+        awaitNavigation()
+        compose.onNodeWithTag("nav-SETTINGS").performClick()
+        compose.onNodeWithText("数据导入与导出").performClick()
+        compose.onNodeWithText("导入账目").performClick()
+        compose.onNodeWithText("选择文件").assertIsDisplayed()
+        compose.onNode(hasText("导入账目") and hasClickAction()).assertIsNotEnabled()
+        compose.onNodeWithTag("settings-back").performClick()
+        lateinit var model: cn.edu.buaa.ledger.ui.LedgerViewModel
+        compose.runOnIdle {
+            model=androidx.lifecycle.ViewModelProvider(compose.activity)[cn.edu.buaa.ledger.ui.LedgerViewModel::class.java]
+            model.exportPreview=listOf(cn.edu.buaa.ledger.data.TransactionEntity("preview","income",20000,
+                java.time.LocalDate.now().toEpochDay(),"work","预览测试",transactionTime="09:15",transactionZone="Asia/Shanghai"))
+        }
+        // A repository row ensures the selection page has something to preview.
+        runBlocking { model.repository.saveEntry(model.exportPreview.single()) }
+        try {
+            compose.onNodeWithText("导出账目").performClick()
+            compose.onNodeWithTag("export-type-income").performScrollTo().performClick()
+            compose.onNodeWithText("预览账目").performClick()
+            compose.onNodeWithText("预览测试").assertIsDisplayed()
+            compose.onNodeWithText("09:15",substring=true).assertIsDisplayed()
+            compose.onNodeWithTag("settings-back").performClick()
+            compose.onNodeWithTag("export-type-income").assertIsSelected()
+        } finally { runBlocking { model.repository.dao.deleteTransaction("preview") } }
+    }
+
 }

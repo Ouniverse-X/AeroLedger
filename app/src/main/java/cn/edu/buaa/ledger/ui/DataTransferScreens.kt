@@ -59,7 +59,7 @@ import java.time.LocalDate
 
 @Composable private fun TransferEntry(entry:TransactionEntity) {
     Text("${entry.customCategory.ifBlank { categoryName(entry.categoryCode) }} · ${if(entry.type=="income")"收入" else "支出"} ¥${entry.amountCents.money()}",style=MaterialTheme.typography.titleMedium)
-    Text(LocalDate.ofEpochDay(entry.dateEpochDay).toString(),style=MaterialTheme.typography.bodyMedium)
+    Text(LocalDate.ofEpochDay(entry.dateEpochDay).toString()+if(entry.transactionTime.isBlank()) "" else " · ${entry.transactionTime}",style=MaterialTheme.typography.bodyMedium)
     if(entry.note.isNotBlank()) Text(entry.note,style=MaterialTheme.typography.bodyMedium)
 }
 
@@ -71,24 +71,54 @@ import java.time.LocalDate
 }
 
 @Composable private fun ImportIssue(label:String,onDetails:()->Unit) {
-    Panel {
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+    Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(18.dp),color=MaterialTheme.colorScheme.surface) {
+        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically) {
             Text(label,Modifier.weight(1f))
             TextButton(onDetails) { Text("查看原因");Icon(Icons.Outlined.ChevronRight,null) }
         }
     }
 }
 
-@Composable fun ImportPreviewScreen(preview:ImportPreview,busy:Boolean,restored:Set<Int>,
+@Composable fun ImportFileScreen(preview:ImportPreview?,busy:Boolean,onChoose:()->Unit,
+    onInvalid:()->Unit,onSkipped:()->Unit,onConfirm:()->Unit) {
+    if (preview == null) {
+        Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
+            FileCard(null,onChoose)
+            Spacer(Modifier.weight(1f))
+            TransferButton(false,false,{})
+        }
+    } else ImportPreviewScreen(preview,busy,onChoose,onInvalid,onSkipped,onConfirm)
+}
+
+@Composable private fun TransferButton(export:Boolean,enabled:Boolean,onClick:()->Unit) {
+    Button(onClick,Modifier.fillMaxWidth().heightIn(min=52.dp),enabled=enabled) {
+        TransferIcon(export);Spacer(Modifier.width(8.dp));Text(if(export)"导出账目" else "导入账目")
+    }
+}
+
+@Composable private fun FileCard(preview:ImportPreview?,onChoose:()->Unit) {
+    Panel {
+        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
+            Icon(Icons.Outlined.InsertDriveFile,null,Modifier.size(40.dp),tint=MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(14.dp))
+            Column(Modifier.weight(1f)) {
+                Text(preview?.filename ?: "选择账目文件",style=MaterialTheme.typography.titleMedium)
+            }
+            TextButton(onChoose) { Text(if(preview==null) "选择文件" else "重新选择") }
+        }
+    }
+}
+
+@Composable fun ImportPreviewScreen(preview:ImportPreview,busy:Boolean,onChoose:()->Unit,
     onInvalid:()->Unit,onSkipped:()->Unit,onConfirm:()->Unit) {
     var expanded by rememberSaveable(preview.hash) { mutableStateOf(false) }
-    val pending=preview.rows.filter { it.state=="valid" || it.ordinal in restored }
+    val pending=preview.rows.filter { it.state=="valid" }
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         LazyColumn(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(12.dp)) {
-            item { Text(preview.filename,style=MaterialTheme.typography.bodyMedium) }
+            item { FileCard(preview,onChoose) }
             if(preview.invalid>0) item { ImportIssue("部分账目无法导入",onInvalid) }
-            if(preview.rows.any{it.state in listOf("duplicate","suspicious") && it.ordinal !in restored})
-                item { ImportIssue("部分账目已跳过",onSkipped) }
+            if(preview.duplicate>0)
+                item { ImportIssue("部分账目已存在",onSkipped) }
             if(pending.isEmpty()) item { Text("没有需要导入的账目") }
             items(if(expanded)pending else pending.take(3),key={it.ordinal}) { row ->
                 Panel { row.entry?.let { TransferEntry(it) } }
@@ -96,23 +126,19 @@ import java.time.LocalDate
             if(pending.size>3) item { ExpandEntries(expanded){expanded=!expanded} }
         }
         Spacer(Modifier.height(12.dp))
-        PrimaryButton("导入账目",enabled=pending.isNotEmpty(),busy=busy,onClick=onConfirm)
+        TransferButton(false,pending.isNotEmpty()&&!busy,onConfirm)
     }
 }
 
-@Composable fun ImportReasonsScreen(preview:ImportPreview,skipped:Boolean,restored:Set<Int>,busy:Boolean,onRestore:(Int)->Unit) {
-    val rows=preview.rows.filter { if(skipped)it.state in listOf("duplicate","suspicious") else it.state=="invalid" }
+@Composable fun ImportReasonsScreen(preview:ImportPreview,skipped:Boolean) {
+    val rows=preview.rows.filter { if(skipped)it.state=="duplicate" else it.state=="invalid" }
     LazyColumn(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         items(rows,key={it.ordinal}) { row -> Panel {
             if(row.entry!=null) TransferEntry(row.entry) else Text("第 ${row.ordinal} 行",style=MaterialTheme.typography.titleMedium)
             Text(when(row.state) {
-                "duplicate" -> "与本机或文件中的账目重复"
-                "suspicious" -> "与其他账目内容相同"
+                "duplicate" -> "这笔账目已经存在，已跳过。"
                 else -> row.message
             })
-            if(row.state=="suspicious") TextButton({onRestore(row.ordinal)},enabled=!busy) {
-                Text(if(row.ordinal in restored)"跳过" else "仍然导入")
-            }
         } }
     }
 }
@@ -127,12 +153,11 @@ import java.time.LocalDate
 }
 
 @OptIn(ExperimentalLayoutApi::class)
-@Composable fun ExportSelectionScreen(entries:List<TransactionEntity>,busy:Boolean,onExport:(List<TransactionEntity>)->Unit) {
+@Composable fun ExportSelectionScreen(entries:List<TransactionEntity>,busy:Boolean,onPreview:(List<TransactionEntity>)->Unit,onExport:(List<TransactionEntity>)->Unit) {
     var customDates by rememberSaveable { mutableStateOf(false) }
     var start by rememberSaveable { mutableStateOf(LocalDate.now().withDayOfMonth(1).toString()) }
     var end by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
     var type by rememberSaveable { mutableStateOf("") }
-    var expanded by rememberSaveable { mutableStateOf(false) }
     var customCategories by rememberSaveable { mutableStateOf(false) }
     var categories by rememberSaveable { mutableStateOf(listOf<String>()) }
     val from=LocalDate.parse(start);val until=LocalDate.parse(end)
@@ -156,8 +181,8 @@ import java.time.LocalDate
             Panel {
                 Text("收支类型",style=MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    listOf("" to "全部","income" to "收入","expense" to "支出").forEach { (value,label) ->
-                        FilterChip(type==value,{type=value;categories=emptyList();expanded=false},
+                    listOf("" to "全部类型","income" to "收入","expense" to "支出").forEach { (value,label) ->
+                        FilterChip(type==value,{type=value;categories=emptyList()},
                             modifier=Modifier.testTag("export-type-$value"),label={Text(label)})
                     }
                 }
@@ -165,12 +190,12 @@ import java.time.LocalDate
             Panel {
                 Text("类别",style=MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    FilterChip(!customCategories,{customCategories=false},label={Text(when(type){"income"->"全部收入类型";"expense"->"全部支出类型";else->"全部类型"})})
+                    FilterChip(!customCategories,{customCategories=false},label={Text("全部类别")})
                     FilterChip(customCategories,{customCategories=true},modifier=Modifier.testTag("export-custom-categories"),label={Text("自定义")})
                 }
                 if(customCategories) {
                     listOf("expense" to "支出","income" to "收入").filter{type.isEmpty() || it.first==type}.forEach { (group,title) ->
-                        Text(title,style=MaterialTheme.typography.titleSmall)
+                        if(type.isEmpty()) Text(title,style=MaterialTheme.typography.titleSmall)
                         FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                             campusCategories.filter{it.type==group}.forEach { c ->
                                 FilterChip(c.code in categories,{
@@ -181,15 +206,21 @@ import java.time.LocalDate
                     }
                 }
             }
-            Text("预览账目",style=MaterialTheme.typography.titleMedium)
-            if(selected.isEmpty()) Text("暂无符合条件的账目")
-            (if(expanded)selected else selected.take(3)).forEach { entry -> Panel { TransferEntry(entry) } }
-            if(selected.size>3) ExpandEntries(expanded){expanded=!expanded}
         }
         Spacer(Modifier.height(12.dp))
-        Button({onExport(selected)},Modifier.fillMaxWidth().heightIn(min=52.dp),enabled=!busy && validDates && selected.isNotEmpty()) {
-            TransferIcon(true);Spacer(Modifier.width(8.dp));Text("导出账目")
+        OutlinedButton({onPreview(selected)},Modifier.fillMaxWidth().heightIn(min=52.dp),enabled=!busy && validDates && selected.isNotEmpty()) {
+            Icon(Icons.Outlined.Visibility,null);Spacer(Modifier.width(8.dp));Text("预览账目")
         }
+        Spacer(Modifier.height(8.dp))
+        TransferButton(true,!busy && validDates && selected.isNotEmpty()){onExport(selected)}
+    }
+}
+
+@Composable fun ExportPreviewScreen(entries:List<TransactionEntity>) {
+    var expanded by rememberSaveable { mutableStateOf(false) }
+    LazyColumn(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
+        items(if(expanded)entries else entries.take(3),key={it.id}) { Panel { TransferEntry(it) } }
+        if(entries.size>3) item { ExpandEntries(expanded){expanded=!expanded} }
     }
 }
 

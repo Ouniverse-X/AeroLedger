@@ -53,11 +53,11 @@ class LedgerDeviceTests {
                 "bad,expense,-5,2026-11-04,餐饮,错误\n"+
                 "bad2,expense,2,2026-02-30,交通,错误\n"
             val p=repo.previewCsv(csv,"test.csv")
-            assertEquals(1,p.valid);assertEquals(1,p.duplicate);assertEquals(1,p.suspicious);assertEquals(2,p.invalid)
+            assertEquals(2,p.valid);assertEquals(1,p.duplicate);assertEquals(2,p.invalid)
             assertTrue(repo.dao.transactions().isEmpty())
-            val result=repo.commitImport(p,false);assertEquals(1,result.added);assertEquals(2,result.skipped)
-            val again=repo.commitImport(repo.previewCsv(csv,"test.csv"),false);assertEquals(0,again.added)
-            val kept=repo.commitImport(repo.previewCsv(csv,"test.csv"),true);assertEquals(1,kept.added)
+            val result=repo.commitImport(p);assertEquals(2,result.added);assertEquals(1,result.skipped)
+            val again=repo.commitImport(repo.previewCsv(csv,"test.csv"));assertEquals(0,again.added)
+            val kept=repo.commitImport(repo.previewCsv(csv,"test.csv"));assertEquals(0,kept.added)
             assertEquals(2,repo.dao.transactions().size)
             val roundtrip=CsvCodec.encode(repo.dao.transactions().map{it.toEntry()})
             assertEquals(2,repo.previewCsv(roundtrip,"export.csv").duplicate)
@@ -66,15 +66,35 @@ class LedgerDeviceTests {
         }
     }
 
-    @Test fun importRestoresOnlySelectedRowsWithoutOverwriting()=runBlocking {
+    @Test fun importKeepsDifferentIdsWithoutOverwriting()=runBlocking {
         withDb { repo ->
             val csv="id,type,amount,date,category,note\noriginal,expense,12.50,2026-11-04,餐饮,午餐\na,expense,12.50,2026-11-04,餐饮,午餐\nb,expense,12.50,2026-11-04,餐饮,午餐\n"
             val preview=repo.previewCsv(csv,"test.csv")
-            assertEquals(1,preview.valid);assertEquals(2,preview.suspicious)
-            assertEquals(2,repo.commitImport(preview,false,setOf(3)).added)
-            assertEquals(setOf("original","a"),repo.dao.transactions().map{it.id}.toSet())
-            assertEquals(0,repo.commitImport(repo.previewCsv(csv,"test.csv"),false).added)
-            assertEquals(2,repo.dao.transactions().size)
+            assertEquals(3,preview.valid)
+            assertEquals(3,repo.commitImport(preview).added)
+            assertEquals(setOf("original","a","b"),repo.dao.transactions().map{it.id}.toSet())
+            assertEquals(0,repo.commitImport(repo.previewCsv(csv,"test.csv")).added)
+            assertEquals(3,repo.dao.transactions().size)
+        }
+    }
+
+    @Test fun newEntryCollisionPreservesExistingAndTimeRoundTrips()=runBlocking {
+        withDb { repo ->
+            val old=TransactionEntity("collision","expense",1250,LocalDate.now().toEpochDay(),"food","午餐",transactionTime="12:35",transactionZone="Asia/Shanghai")
+            assertEquals(old.id,repo.createEntry(old))
+            val newId=repo.createEntry(old.copy(note="另一笔"))
+            assertNotEquals(old.id,newId)
+            java.util.UUID.fromString(newId)
+            assertEquals("午餐",repo.dao.transaction(old.id)?.note)
+            assertEquals("另一笔",repo.dao.transaction(newId)?.note)
+            val csv=CsvCodec.encode(repo.dao.transactions().map{it.toEntry()})
+            withDb { target ->
+                val preview=target.previewCsv(csv,"timed.csv")
+                assertEquals(2,target.commitImport(preview).added)
+                assertEquals("12:35",target.dao.transaction(newId)?.transactionTime)
+                assertEquals("Asia/Shanghai",target.dao.transaction(newId)?.transactionZone)
+                assertEquals(0,target.commitImport(target.previewCsv(csv,"again.csv")).added)
+            }
         }
     }
 
