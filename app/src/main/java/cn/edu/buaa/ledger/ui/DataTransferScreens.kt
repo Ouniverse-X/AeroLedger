@@ -12,7 +12,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.Alignment
+import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import cn.edu.buaa.ledger.data.*
@@ -23,13 +23,13 @@ import java.time.LocalDate
 @Composable fun DataTransferScreen(busy:Boolean,onImport:()->Unit,onExport:()->Unit) {
     Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
         Panel { TransferAction("导入账目",false,!busy,onImport) }
-        Panel { TransferAction("导出选定账目",true,!busy,onExport) }
+        Panel { TransferAction("导出账目",true,!busy,onExport) }
     }
 }
 
 @Composable private fun TransferAction(label:String,download:Boolean,enabled:Boolean,onClick:()->Unit) {
     TextButton(onClick,Modifier.fillMaxWidth().heightIn(min=48.dp),enabled=enabled) {
-        Icon(if(download) Icons.Outlined.FileDownload else Icons.Outlined.FileUpload,null)
+        Icon(if(download) Icons.Outlined.Outbox else Icons.Outlined.MoveToInbox,null)
         Spacer(Modifier.width(12.dp));Text(label,Modifier.weight(1f));Icon(Icons.Outlined.ChevronRight,null)
     }
 }
@@ -43,7 +43,7 @@ import java.time.LocalDate
 }
 
 @Composable fun ImportPreviewScreen(preview:ImportPreview,busy:Boolean,onConfirm:(Set<Int>)->Unit) {
-    var restored by rememberSaveable(preview.hash) { mutableStateOf(arrayListOf<Int>()) }
+    var restored by rememberSaveable(preview.hash) { mutableStateOf(listOf<Int>()) }
     var showSkipped by rememberSaveable(preview.hash) { mutableStateOf(false) }
     var showInvalid by rememberSaveable(preview.hash) { mutableStateOf(false) }
     val pending=preview.rows.filter { it.state=="valid" || it.ordinal in restored }
@@ -63,13 +63,13 @@ import java.time.LocalDate
             }
             if(showSkipped) items(preview.rows.filter{it.state in listOf("duplicate","suspicious") && it.ordinal !in restored},key={"skipped-${it.ordinal}"}) { row -> Panel {
                 ImportEntry(row)
-                Text(if(row.state=="duplicate")"已导入" else "与已有账目内容相同",style=MaterialTheme.typography.bodySmall)
-                if(row.state=="suspicious") TextButton({restored=ArrayList(restored+row.ordinal)}) {Text("仍然导入")}
+                Text(if(row.state=="duplicate")"重复账目" else "与其他账目内容相同",style=MaterialTheme.typography.bodySmall)
+                if(row.state=="suspicious") TextButton({restored=restored+row.ordinal}) {Text("仍然导入")}
             } }
             if(pending.isEmpty()) item { Text("没有需要导入的账目") }
             items(pending,key={"pending-${it.ordinal}"}) { row -> Panel {
                 ImportEntry(row)
-                if(row.ordinal in restored) TextButton({restored=ArrayList(restored-row.ordinal)}) {Text("跳过")}
+                if(row.ordinal in restored) TextButton({restored=restored-row.ordinal}) {Text("跳过")}
             } }
         }
         Spacer(Modifier.height(12.dp))
@@ -91,19 +91,19 @@ import java.time.LocalDate
     var customDates by rememberSaveable { mutableStateOf(false) }
     var start by rememberSaveable { mutableStateOf(LocalDate.now().withDayOfMonth(1).toString()) }
     var end by rememberSaveable { mutableStateOf(LocalDate.now().toString()) }
-    var type by rememberSaveable { mutableStateOf("") }
-    var category by rememberSaveable { mutableStateOf("") }
+    var customCategories by rememberSaveable { mutableStateOf(false) }
+    var categories by rememberSaveable { mutableStateOf(listOf<String>()) }
     val from=LocalDate.parse(start);val until=LocalDate.parse(end)
     val validDates=!customDates || from<=until
     val selected=entries.filter { e -> (!customDates || e.dateEpochDay in from.toEpochDay()..until.toEpochDay()) &&
-        (type.isEmpty() || e.type==type) && (category.isEmpty() || e.categoryCode==category) }
+        ( !customCategories || e.categoryCode in categories) }
     Column(Modifier.fillMaxSize().padding(20.dp)) {
         Column(Modifier.weight(1f).verticalScroll(rememberScrollState()),verticalArrangement=Arrangement.spacedBy(18.dp)) {
             Panel {
                 Text("日期范围",style=MaterialTheme.typography.titleMedium)
                 Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
                     FilterChip(!customDates,{customDates=false},label={Text("全部日期")})
-                    FilterChip(customDates,{customDates=true},label={Text("自定义")})
+                    FilterChip(customDates,{customDates=true},modifier=Modifier.testTag("export-custom-dates"),label={Text("自定义")})
                 }
                 if(customDates) {
                     ExportDate("开始日期",start){start=it}
@@ -112,26 +112,28 @@ import java.time.LocalDate
                 }
             }
             Panel {
-                Text("收支类型",style=MaterialTheme.typography.titleMedium)
-                FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    listOf("" to "全部类型","expense" to "支出","income" to "收入").forEach { (value,label) ->
-                        FilterChip(type==value,{type=value;category=""},label={Text(label)})
-                    }
-                }
-            }
-            Panel {
                 Text("类别",style=MaterialTheme.typography.titleMedium)
-                FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
-                    FilterChip(category.isEmpty(),{category=""},label={Text("全部类别")})
-                    campusCategories.filter{type.isEmpty() || it.type==type}.forEach { c ->
-                        FilterChip(category==c.code,{category=c.code},label={Text(if(type.isEmpty()) "${if(c.type=="income")"收入" else "支出"} · ${c.name}" else c.name)})
+                Row(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                    FilterChip(!customCategories,{customCategories=false},label={Text("全部类型")})
+                    FilterChip(customCategories,{customCategories=true},modifier=Modifier.testTag("export-custom-categories"),label={Text("自定义")})
+                }
+                if(customCategories) {
+                    listOf("expense" to "支出","income" to "收入").forEach { (type,title) ->
+                        Text(title,style=MaterialTheme.typography.titleSmall)
+                        FlowRow(horizontalArrangement=Arrangement.spacedBy(8.dp)) {
+                            campusCategories.filter{it.type==type}.forEach { c ->
+                                FilterChip(c.code in categories,{
+                                    categories=if(c.code in categories) categories-c.code else categories+c.code
+                                },label={Text(c.name)})
+                            }
+                        }
                     }
                 }
             }
         }
         Spacer(Modifier.height(12.dp))
         Button({onExport(selected)},Modifier.fillMaxWidth().heightIn(min=52.dp),enabled=!busy && validDates && selected.isNotEmpty()) {
-            Icon(Icons.Outlined.FileDownload,null);Spacer(Modifier.width(8.dp));Text("导出 ${selected.size} 笔账目")
+            Icon(Icons.Outlined.Outbox,null);Spacer(Modifier.width(8.dp));Text("导出 ${selected.size} 笔账目")
         }
     }
 }

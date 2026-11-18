@@ -22,11 +22,18 @@ class DataTransferUiTests {
         val old=entry("old",date=LocalDate.now().minusYears(1))
         var selected:List<TransactionEntity>?=null
         compose.setContent { LedgerTheme { ExportSelectionScreen(listOf(expense,income,old),false){selected=it} } }
-        compose.onNodeWithText("自定义").performClick()
-        compose.onNodeWithText("支出",substring=false).performScrollTo().performClick()
+        compose.onNodeWithText("餐饮",substring=false).assertDoesNotExist()
+        compose.onNodeWithTag("export-custom-dates").performClick()
+        compose.onNodeWithTag("export-custom-categories").performScrollTo().performClick()
         compose.onNodeWithText("餐饮",substring=false).performScrollTo().performClick()
         compose.onNodeWithText("导出 1 笔账目").performClick()
         compose.runOnIdle { assertEquals(listOf(expense),selected) }
+        compose.onNodeWithText("兼职",substring=false).performScrollTo().performClick()
+        compose.onNodeWithText("导出 2 笔账目").performClick()
+        compose.runOnIdle { assertEquals(listOf(expense,income),selected) }
+        compose.onNodeWithText("全部类型").performScrollTo().performClick()
+        compose.onNodeWithText("餐饮",substring=false).assertDoesNotExist()
+        compose.onNodeWithText("导出 2 笔账目").assertIsEnabled()
     }
 
     @Test fun importRestoresOnlyChosenSkippedEntry() {

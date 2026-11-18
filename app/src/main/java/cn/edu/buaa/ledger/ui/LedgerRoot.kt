@@ -91,7 +91,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
     val themeColor = settings.color
     var settingsPage by rememberSaveable { mutableStateOf<String?>(null) }
     fun backPage() { settingsPage=when(settingsPage) {
-        "导出选定账目", "导入账目", "导入结果" -> "数据导入与导出"
+        "导出账目", "导入账目", "导入结果" -> "数据导入与导出"
         else -> null
     } }
     BackHandler(settingsPage != null) { backPage() }
@@ -210,7 +210,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     transitionSpec={
                         fun depth(page:String?)=when(page) {
                             null -> 0
-                            "导出选定账目", "导入账目", "导入结果" -> 2
+                            "导出账目", "导入账目", "导入结果" -> 2
                             else -> 1
                         }
                         val direction=if(depth(targetState)<depth(initialState))-1 else 1
@@ -225,8 +225,8 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     page=="外观"->AppearanceScreen(theme,themeColor,vm::changeTheme,vm::changeThemeColor)
                     page=="管理权限"->PermissionsScreen(::notifyPermission)
                     page=="关于"->AboutScreen()
-                    page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{importFile.launch(arrayOf("*/*"))},{settingsPage="导出选定账目"})
-                    page=="导出选定账目"->ExportSelectionScreen(data.entries,busy||!data.ready,::export)
+                    page=="数据导入与导出"->DataTransferScreen(busy||!data.ready,{importFile.launch(arrayOf("*/*"))},{settingsPage="导出账目"})
+                    page=="导出账目"->ExportSelectionScreen(data.entries,busy||!data.ready,::export)
                     page=="导入账目"->preview?.let { selected -> ImportPreviewScreen(selected,busy) { restored -> vm.task {
                         vm.importOutcome.value=vm.repository.commitImport(selected,false,restored)
                         vm.importPreview.value=null;settingsPage="导入结果"
