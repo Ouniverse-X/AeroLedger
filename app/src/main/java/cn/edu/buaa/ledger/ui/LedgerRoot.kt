@@ -249,7 +249,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                         } }
                     }
                     page in listOf("无法导入的账目","跳过的账目")->preview?.let { ImportReasonsScreen(it,page=="跳过的账目") }
-                    page=="导入结果"->ImportResultScreen(importOutcome,{settingsPage="数据导入与导出"}) {
+                    page=="导入结果"->ImportResultScreen(importOutcome,{vm.importPreview.value=null;settingsPage="导入账目"}) {
                         settingsPage=null;tab=Destination.BILLS;change(filter.copy(month=vm.importedMonth ?: filter.month,day=null,type=null,category=null))
                     }
                     page==null && tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{settingsPage="数据导入与导出"},{settingsPage="关于"})

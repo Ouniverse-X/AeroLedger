@@ -94,8 +94,8 @@ class DataTransferUiTests {
         compose.setContent { LedgerTheme { ImportResultScreen(ImportOutcome(1,1,1),{close=true},{view=true}) } }
         compose.onNodeWithText("导入成功").assertIsDisplayed()
         compose.onNodeWithText("部分账目未能导入").assertDoesNotExist()
-        compose.onNodeWithText("查看账单").performClick()
-        compose.onNodeWithText("返回导入导出").performClick()
+        compose.onNodeWithText("查看最新账单").performClick()
+        compose.onNodeWithText("继续导入账目").performClick()
         compose.runOnIdle { assertTrue(view);assertTrue(close) }
     }
 

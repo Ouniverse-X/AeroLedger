@@ -152,11 +152,11 @@ import java.time.LocalDate
                 Text(if(outcome==null)"请重新选择文件" else "导入成功",style=MaterialTheme.typography.titleLarge)
             }
         }
-        if(outcome!=null) Button(onView,Modifier.fillMaxWidth().heightIn(min=52.dp)) { Text("查看账单") }
+        if(outcome!=null) Button(onView,Modifier.fillMaxWidth().heightIn(min=52.dp)) { Text("查看最新账单") }
         OutlinedButton(onClose,Modifier.fillMaxWidth().heightIn(min=52.dp),
             border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.primary),
             colors=ButtonDefaults.outlinedButtonColors(containerColor=MaterialTheme.colorScheme.surface)) {
-            Text("返回导入导出")
+            Text("继续导入账目")
         }
     }
 }
