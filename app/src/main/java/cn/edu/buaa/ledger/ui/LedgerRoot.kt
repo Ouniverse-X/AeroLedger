@@ -332,10 +332,8 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                 Icon(Icons.Outlined.PrivacyTip,null,tint=MaterialTheme.colorScheme.primary)
                 Column(Modifier.weight(1f),verticalArrangement=Arrangement.spacedBy(18.dp)) {
                     Text("账目、预算、缴费计划和月度/年度回顾保存在本机，卸载应用会删除这些数据。",style=MaterialTheme.typography.bodyLarge)
-                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-                    Text("请提前导出需要保留的账目，注意导出内容不包含预算、缴费计划和月度/年度回顾。",style=MaterialTheme.typography.bodyLarge)
-                    HorizontalDivider(color=MaterialTheme.colorScheme.outlineVariant)
-                    Text("图片识别在本机完成，相关内容不会上传。",style=MaterialTheme.typography.bodyLarge)
+                    Text("请提前导出需要保存的账目。导出内容不包含预算、缴费计划和月度/年度回顾。",style=MaterialTheme.typography.bodyLarge)
+                    Text("图片识别在本机完成，相关数据不会上传。",style=MaterialTheme.typography.bodyLarge)
                 }
             }
         }
