@@ -134,7 +134,7 @@ import java.time.LocalDate
     val rows=preview.rows.filter { if(skipped)it.state=="duplicate" else it.state=="invalid" }
     LazyColumn(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(12.dp)) {
         items(rows,key={it.ordinal}) { row -> Panel {
-            if(row.entry!=null) TransferEntry(row.entry) else Text("第 ${row.ordinal} 行",style=MaterialTheme.typography.titleMedium)
+            if(row.entry!=null) TransferEntry(row.entry) else Text("第 ${row.ordinal} 条",style=MaterialTheme.typography.titleMedium)
             Text(when(row.state) {
                 "duplicate" -> "这笔账目已经存在，已跳过。"
                 else -> row.message

@@ -65,7 +65,7 @@ class LedgerRepository(val context: Context, val database: LedgerDatabase) {
         val known = dao.transactions()
         val ids = known.map { it.id }.toMutableSet()
         val rows = parsed.drop(1).mapIndexed { index, fields ->
-            val ordinal = index + 2
+            val ordinal = index + 1
             try {
                 require(fields.size == parsed.first().size) { "列数与表头不一致" }
                 val entry = CsvCodec.decodeRow(fields).toEntity("csv", filename)

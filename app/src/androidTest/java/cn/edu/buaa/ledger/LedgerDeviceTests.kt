@@ -66,6 +66,17 @@ class LedgerDeviceTests {
         }
     }
 
+    @Test fun importNumbersRecordsWithoutHeaderOrMultilineNote()=runBlocking {
+        withDb { repo ->
+            val csv="id,type,amount,date,category,note\n"+
+                "first,expense,12,2026-11-18,餐饮,\"午餐\n食堂\"\n"+
+                "bad,expense,abc,2026-11-18,餐饮,金额异常\n"
+            val preview=repo.previewCsv(csv,"numbering.csv")
+            assertEquals(listOf(1,2),preview.rows.map{it.ordinal})
+            assertEquals("invalid",preview.rows[1].state)
+        }
+    }
+
     @Test fun importKeepsDifferentIdsWithoutOverwriting()=runBlocking {
         withDb { repo ->
             val csv="id,type,amount,date,category,note\noriginal,expense,12.50,2026-11-04,餐饮,午餐\na,expense,12.50,2026-11-04,餐饮,午餐\nb,expense,12.50,2026-11-04,餐饮,午餐\n"

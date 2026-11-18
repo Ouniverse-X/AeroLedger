@@ -60,17 +60,17 @@ class DataTransferUiTests {
     }
 
     @Test fun importPreviewCollapsesEntriesAndOpensReasons() {
-        val rows=(2..6).map { ImportRow(it,entry("item-$it"),"valid") }+
-            ImportRow(7,null,"invalid","金额无效")+ImportRow(8,entry("duplicate"),"duplicate")
+        val rows=(1..5).map { ImportRow(it,entry("item-$it"),"valid") }+
+            ImportRow(6,null,"invalid","金额无效")+ImportRow(7,entry("duplicate"),"duplicate")
         var invalid=false;var skipped=false
         compose.setContent { LedgerTheme { ImportPreviewScreen(ImportPreview("test","账目.csv",rows),false,{},
             {invalid=true},{skipped=true},{}) } }
         compose.onAllNodesWithText("查看")[0].performClick()
         compose.onAllNodesWithText("查看")[1].performClick()
         compose.runOnIdle { assertTrue(invalid);assertTrue(skipped) }
-        compose.onNodeWithText("账目-item-6").assertDoesNotExist()
+        compose.onNodeWithText("账目-item-5").assertDoesNotExist()
         compose.onNodeWithText("展开").performScrollTo().performClick()
-        compose.onNodeWithText("账目-item-6").performScrollTo().assertIsDisplayed()
+        compose.onNodeWithText("账目-item-5").performScrollTo().assertIsDisplayed()
     }
     @Test fun exportPreviewExpandsEntries() {
         val entries=(1..5).map { entry("item-$it") }

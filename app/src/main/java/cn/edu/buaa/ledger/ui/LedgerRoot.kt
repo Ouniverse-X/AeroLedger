@@ -234,7 +234,7 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                     page=="导出账目"->ExportSelectionScreen(data.entries,busy||!data.ready,{vm.exportPreview=it;settingsPage="预览账目"},::export)
                     page=="预览账目"->ExportPreviewScreen(vm.exportPreview)
                     page=="导入账目"->ImportFileScreen(preview,busy,{
-                        vm.importPreview.value=null;importFile.launch(arrayOf("*/*"))
+                        importFile.launch(arrayOf("*/*"))
                     },{settingsPage="无法导入的账目"},{settingsPage="跳过的账目"}) {
                         preview?.let { selected -> vm.task {
                             val outcome=vm.repository.commitImport(selected)
