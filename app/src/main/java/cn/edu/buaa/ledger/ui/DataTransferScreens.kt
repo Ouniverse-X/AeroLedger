@@ -74,7 +74,7 @@ import java.time.LocalDate
     Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(18.dp),color=MaterialTheme.colorScheme.surface) {
         Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically) {
             Text(label,Modifier.weight(1f))
-            TextButton(onDetails) { Text("查看原因");Icon(Icons.Outlined.ChevronRight,null) }
+            TextButton(onDetails) { Text("查看");Icon(Icons.Outlined.ChevronRight,null) }
         }
     }
 }
@@ -97,10 +97,10 @@ import java.time.LocalDate
 }
 
 @Composable private fun FileCard(preview:ImportPreview?,onChoose:()->Unit) {
-    Panel {
-        Row(Modifier.fillMaxWidth(),verticalAlignment=Alignment.CenterVertically) {
-            Icon(Icons.Outlined.InsertDriveFile,null,Modifier.size(40.dp),tint=MaterialTheme.colorScheme.primary)
-            Spacer(Modifier.width(14.dp))
+    Surface(shape=androidx.compose.foundation.shape.RoundedCornerShape(18.dp),color=MaterialTheme.colorScheme.surface) {
+        Row(Modifier.fillMaxWidth().padding(horizontal=16.dp,vertical=4.dp),verticalAlignment=Alignment.CenterVertically) {
+            Icon(Icons.Outlined.InsertDriveFile,null,Modifier.size(24.dp),tint=MaterialTheme.colorScheme.primary)
+            Spacer(Modifier.width(12.dp))
             Column(Modifier.weight(1f)) {
                 Text(preview?.filename ?: "选择账目文件",style=MaterialTheme.typography.titleMedium)
             }
@@ -144,11 +144,20 @@ import java.time.LocalDate
 }
 
 @Composable fun ImportResultScreen(outcome:ImportOutcome?,onClose:()->Unit,onView:()->Unit) {
-    Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(18.dp)) {
-        Text(if(outcome==null)"请重新选择文件" else if(outcome.added>0)"账目已导入" else "没有新增账目",style=MaterialTheme.typography.titleMedium)
-        if(outcome!=null && outcome.invalid>0) Text("部分账目未能导入")
-        if(outcome!=null && outcome.added>0) PrimaryButton("查看账单",onClick=onView)
-        TextButton(onClose) {Text("完成")}
+    Column(Modifier.fillMaxSize().padding(20.dp),verticalArrangement=Arrangement.spacedBy(16.dp)) {
+        Panel {
+            Column(Modifier.fillMaxWidth().padding(vertical=24.dp),horizontalAlignment=Alignment.CenterHorizontally,
+                verticalArrangement=Arrangement.spacedBy(16.dp)) {
+                Icon(Icons.Outlined.CheckCircle,null,Modifier.size(56.dp),tint=MaterialTheme.colorScheme.primary)
+                Text(if(outcome==null)"请重新选择文件" else "导入成功",style=MaterialTheme.typography.titleLarge)
+            }
+        }
+        if(outcome!=null) Button(onView,Modifier.fillMaxWidth().heightIn(min=52.dp)) { Text("查看账单") }
+        OutlinedButton(onClose,Modifier.fillMaxWidth().heightIn(min=52.dp),
+            border=androidx.compose.foundation.BorderStroke(1.dp,MaterialTheme.colorScheme.primary),
+            colors=ButtonDefaults.outlinedButtonColors(containerColor=MaterialTheme.colorScheme.surface)) {
+            Text("返回导入导出")
+        }
     }
 }
 

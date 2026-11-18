@@ -65,8 +65,8 @@ class DataTransferUiTests {
         var invalid=false;var skipped=false
         compose.setContent { LedgerTheme { ImportPreviewScreen(ImportPreview("test","账目.csv",rows),false,{},
             {invalid=true},{skipped=true},{}) } }
-        compose.onAllNodesWithText("查看原因")[0].performClick()
-        compose.onAllNodesWithText("查看原因")[1].performClick()
+        compose.onAllNodesWithText("查看")[0].performClick()
+        compose.onAllNodesWithText("查看")[1].performClick()
         compose.runOnIdle { assertTrue(invalid);assertTrue(skipped) }
         compose.onNodeWithText("账目-item-6").assertDoesNotExist()
         compose.onNodeWithText("展开").performScrollTo().performClick()
@@ -80,6 +80,23 @@ class DataTransferUiTests {
         compose.onNodeWithText("账目-item-5").performScrollTo().assertIsDisplayed()
         compose.onNodeWithText("收起").performScrollTo().performClick()
         compose.onNodeWithText("账目-item-5").assertDoesNotExist()
+    }
+
+    @Test fun importWithOnlyExistingEntriesStaysDisabled() {
+        val preview=ImportPreview("existing","账目.csv",listOf(ImportRow(2,entry("old"),"duplicate")))
+        compose.setContent { LedgerTheme { ImportFileScreen(preview,false,{},{},{},{}) } }
+        compose.onNodeWithText("导入账目").assertIsNotEnabled()
+        compose.onNodeWithText("查看").assertIsDisplayed()
+    }
+
+    @Test fun importSuccessOffersBothDestinationsWithoutExtraNotice() {
+        var view=false;var close=false
+        compose.setContent { LedgerTheme { ImportResultScreen(ImportOutcome(1,1,1),{close=true},{view=true}) } }
+        compose.onNodeWithText("导入成功").assertIsDisplayed()
+        compose.onNodeWithText("部分账目未能导入").assertDoesNotExist()
+        compose.onNodeWithText("查看账单").performClick()
+        compose.onNodeWithText("返回导入导出").performClick()
+        compose.runOnIdle { assertTrue(view);assertTrue(close) }
     }
 
 }

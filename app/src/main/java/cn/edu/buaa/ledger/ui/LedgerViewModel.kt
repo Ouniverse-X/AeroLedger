@@ -26,6 +26,7 @@ class LedgerViewModel(application: Application, private val saved: SavedStateHan
     val messages = MutableSharedFlow<String>(extraBufferCapacity = 8)
     var exportPreview: List<TransactionEntity> = emptyList()
     var pendingExport: String? = null
+    var importedMonth: YearMonth? = null
     val importOutcome = MutableStateFlow<ImportOutcome?>(null)
     val importPreview = MutableStateFlow<ImportPreview?>(null)
     var filter: FilterSpec

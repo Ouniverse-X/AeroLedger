@@ -237,13 +237,20 @@ private enum class Destination(val title: String, val icon: androidx.compose.ui.
                         vm.importPreview.value=null;importFile.launch(arrayOf("*/*"))
                     },{settingsPage="无法导入的账目"},{settingsPage="跳过的账目"}) {
                         preview?.let { selected -> vm.task {
-                            vm.importOutcome.value=vm.repository.commitImport(selected)
-                            settingsPage="导入结果"
+                            val outcome=vm.repository.commitImport(selected)
+                            if(outcome.added>0) {
+                                vm.importOutcome.value=outcome
+                                vm.importedMonth=selected.rows.filter{it.state=="valid"}.mapNotNull{it.entry?.dateEpochDay}
+                                    .maxOrNull()?.let{YearMonth.from(LocalDate.ofEpochDay(it))}
+                                settingsPage="导入结果"
+                            } else vm.importPreview.value=selected.copy(rows=selected.rows.map {
+                                if(it.state=="valid")it.copy(state="duplicate") else it
+                            })
                         } }
                     }
                     page in listOf("无法导入的账目","跳过的账目")->preview?.let { ImportReasonsScreen(it,page=="跳过的账目") }
                     page=="导入结果"->ImportResultScreen(importOutcome,{settingsPage="数据导入与导出"}) {
-                        settingsPage=null;tab=Destination.BILLS;change(filter.copy(type=null,category=null))
+                        settingsPage=null;tab=Destination.BILLS;change(filter.copy(month=vm.importedMonth ?: filter.month,day=null,type=null,category=null))
                     }
                     page==null && tab==Destination.SETTINGS->SettingsScreen({settingsPage="外观"},{settingsPage="管理权限"},{settingsPage="数据导入与导出"},{settingsPage="关于"})
                     !data.ready->Column(Modifier.fillMaxSize(),verticalArrangement=Arrangement.Center,horizontalAlignment=Alignment.CenterHorizontally){CircularProgressIndicator();Spacer(Modifier.height(16.dp));Subtitle("正在加载…")}
